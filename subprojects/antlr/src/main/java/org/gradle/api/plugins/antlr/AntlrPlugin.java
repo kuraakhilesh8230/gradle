@@ -23,6 +23,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.internal.file.FileCollectionFactory;
 import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory;
+import org.gradle.api.internal.plugins.DslObject;
 import org.gradle.api.internal.tasks.DefaultSourceSet;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaLibraryPlugin;
@@ -91,9 +92,8 @@ public class AntlrPlugin implements Plugin<Project> {
 
                         final AntlrSourceVirtualDirectoryImpl antlrDirectoryDelegate
                                 = instantiator.newInstance(AntlrSourceVirtualDirectoryImpl.class, ((DefaultSourceSet) sourceSet).getDisplayName(), objectFactory, patternSetFactory, fileCollectionFactory, directoryFileTreeFactory);
-//                        new DslObject(sourceSet).getConvention().getPlugins().put(
-//                                AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
-                        System.out.println(sourceSet);
+                        new DslObject(sourceSet).getConvention().getPlugins().put(
+                                AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
                         sourceSet.getExtensions().add(AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
                         final String srcDir = "src/"+ sourceSet.getName() +"/antlr";
                         antlrDirectoryDelegate.getAntlr().srcDir(srcDir);
