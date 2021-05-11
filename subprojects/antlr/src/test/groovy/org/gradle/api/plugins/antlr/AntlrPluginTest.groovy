@@ -18,7 +18,6 @@ package org.gradle.api.plugins.antlr
 
 import org.gradle.api.Action
 import org.gradle.test.fixtures.AbstractProjectBuilderSpec
-import spock.lang.Ignore
 
 import static org.gradle.api.reflect.TypeOf.typeOf
 
@@ -53,16 +52,16 @@ class AntlrPluginTest extends AbstractProjectBuilderSpec {
             sourceSet.srcDirs = [project.file('src/main/antlr-custom')]
         }
 
-//        and: 'using Action'
-//        def test = project.sourceSets.test
-//        //println test.antlr.getClass()
-//        test.antlr({ sourceSet ->
-//            sourceSet.srcDirs = [project.file('src/test/antlr-custom')]
-//        } as Action)
+        and: 'using Action'
+        def test = project.sourceSets.test
+        //println test.antlr.getClass()
+        test.antlr({ sourceSet ->
+            sourceSet.srcDirs = [project.file('src/test/antlr-custom')]
+        } as Action)
 
         then:
         main.antlr.srcDirs == [project.file('src/main/antlr-custom')] as Set
-//        test.antlr.srcDirs == [project.file('src/test/antlr-custom')] as Set
+        test.antlr.srcDirs == [project.file('src/test/antlr-custom')] as Set
     }
 
     def addsTaskForEachSourceSet() {
@@ -87,7 +86,6 @@ class AntlrPluginTest extends AbstractProjectBuilderSpec {
         project.tasks.compileCustomJava.taskDependencies.getDependencies(null).contains(custom)
     }
 
-    @Ignore("TODO (donat) re-enable after CI pases")
     def 'source set convention exposes its public type'() {
         when:
         project.pluginManager.apply(AntlrPlugin)
