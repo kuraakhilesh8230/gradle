@@ -208,8 +208,7 @@ public class ScalaBasePlugin implements Plugin<Project> {
     }
 
     private static void configureScalaCompile(final Project project, final SourceSet sourceSet, final Configuration incrementalAnalysis, final Usage incrementalAnalysisUsage) {
-        Convention scalaConvention = (Convention) InvokerHelper.getProperty(sourceSet, "convention");
-        final ScalaSourceSet scalaSourceSet = scalaConvention.findPlugin(ScalaSourceSet.class);
+        final ScalaSourceSet scalaSourceSet = sourceSet.getExtensions().getByType(ScalaSourceSet.class);
 
         final TaskProvider<ScalaCompile> scalaCompile = project.getTasks().register(sourceSet.getCompileTaskName("scala"), ScalaCompile.class, new Action<ScalaCompile>() {
             @Override
