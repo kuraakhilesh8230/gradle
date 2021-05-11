@@ -36,6 +36,8 @@ import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.internal.artifacts.configurations.ConfigurationInternal;
+import org.gradle.api.internal.file.FileCollectionFactory;
+import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory;
 import org.gradle.api.internal.tasks.DefaultScalaSourceSet;
 import org.gradle.api.internal.tasks.scala.DefaultScalaPluginExtension;
 import org.gradle.api.model.ObjectFactory;
@@ -54,6 +56,8 @@ import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.scala.IncrementalCompileOptions;
 import org.gradle.api.tasks.scala.ScalaCompile;
 import org.gradle.api.tasks.scala.ScalaDoc;
+import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Factory;
 import org.gradle.jvm.tasks.Jar;
 
 import javax.inject.Inject;
@@ -90,11 +94,17 @@ public class ScalaBasePlugin implements Plugin<Project> {
 
     private final ObjectFactory objectFactory;
     private final JvmEcosystemUtilities jvmEcosystemUtilities;
+    private final Factory<PatternSet> patternSetFactory;
+    private final FileCollectionFactory fileCollectionFactory;
+    private final DirectoryFileTreeFactory directoryFileTreeFactory;
 
     @Inject
-    public ScalaBasePlugin(ObjectFactory objectFactory, JvmEcosystemUtilities jvmEcosystemUtilities) {
+    public ScalaBasePlugin(ObjectFactory objectFactory, JvmEcosystemUtilities jvmEcosystemUtilities, Factory<PatternSet> patternSetFactory, FileCollectionFactory fileCollectionFactory, DirectoryFileTreeFactory directoryFileTreeFactory) {
         this.objectFactory = objectFactory;
         this.jvmEcosystemUtilities = jvmEcosystemUtilities;
+        this.patternSetFactory = patternSetFactory;
+        this.fileCollectionFactory = fileCollectionFactory;
+        this.directoryFileTreeFactory = directoryFileTreeFactory;
     }
 
     @Override
@@ -161,14 +171,15 @@ public class ScalaBasePlugin implements Plugin<Project> {
         });
     }
 
-    private static void configureSourceSetDefaults(final Project project, final Usage incrementalAnalysisUsage, final ObjectFactory objectFactory) {
+    private void configureSourceSetDefaults(final Project project, final Usage incrementalAnalysisUsage, final ObjectFactory objectFactory) {
         project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(new Action<SourceSet>() {
             @Override
             public void execute(final SourceSet sourceSet) {
                 String displayName = (String) InvokerHelper.invokeMethod(sourceSet, "getDisplayName", null);
                 Convention sourceSetConvention = (Convention) InvokerHelper.getProperty(sourceSet, "convention");
-                DefaultScalaSourceSet scalaSourceSet = new DefaultScalaSourceSet(displayName, objectFactory);
-                sourceSetConvention.getPlugins().put("scala", scalaSourceSet);
+                DefaultScalaSourceSet scalaSourceSet = new DefaultScalaSourceSet(displayName, objectFactory, patternSetFactory, fileCollectionFactory, directoryFileTreeFactory);
+                //sourceSetConvention.getPlugins().put("scala", scalaSourceSet);
+                sourceSet.getExtensions().add("scala", scalaSourceSet);
 
                 final SourceDirectorySet scalaDirectorySet = scalaSourceSet.getScala();
                 scalaDirectorySet.srcDir(project.file("src/" + sourceSet.getName() + "/scala"));
