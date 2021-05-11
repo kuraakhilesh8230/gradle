@@ -18,10 +18,15 @@ package org.gradle.api.plugins.antlr.internal;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
 import org.gradle.api.file.SourceDirectorySet;
+import org.gradle.api.internal.file.DefaultSourceDirectorySet;
+import org.gradle.api.internal.file.FileCollectionFactory;
+import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.antlr.AntlrSourceVirtualDirectory;
 import org.gradle.api.reflect.HasPublicType;
 import org.gradle.api.reflect.TypeOf;
+import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Factory;
 import org.gradle.util.internal.ConfigureUtil;
 
 import static org.gradle.api.reflect.TypeOf.typeOf;
@@ -29,18 +34,17 @@ import static org.gradle.api.reflect.TypeOf.typeOf;
 /**
  * The implementation of the {@link org.gradle.api.plugins.antlr.AntlrSourceVirtualDirectory} contract.
  */
-public class AntlrSourceVirtualDirectoryImpl implements AntlrSourceVirtualDirectory, HasPublicType {
-    private final SourceDirectorySet antlr;
+public class AntlrSourceVirtualDirectoryImpl extends DefaultSourceDirectorySet implements AntlrSourceVirtualDirectory, HasPublicType {
 
-    public AntlrSourceVirtualDirectoryImpl(String parentDisplayName, ObjectFactory objectFactory) {
-        antlr = objectFactory.sourceDirectorySet(parentDisplayName + ".antlr", parentDisplayName + " Antlr source");
-        antlr.getFilter().include("**/*.g");
-        antlr.getFilter().include("**/*.g4");
+    public AntlrSourceVirtualDirectoryImpl(String parentDisplayName, ObjectFactory objectFactory, Factory<PatternSet> patternSetFactory, FileCollectionFactory fileCollectionFactory, DirectoryFileTreeFactory directoryFileTreeFactory) {
+        super(parentDisplayName + ".antlr", parentDisplayName + " Antlr source", patternSetFactory, fileCollectionFactory, directoryFileTreeFactory, objectFactory);
+        getFilter().include("**/*.g");
+        getFilter().include("**/*.g4");
     }
 
     @Override
     public SourceDirectorySet getAntlr() {
-        return antlr;
+        return this;
     }
 
     @Override

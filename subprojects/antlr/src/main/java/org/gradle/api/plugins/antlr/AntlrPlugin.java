@@ -21,6 +21,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.internal.file.FileCollectionFactory;
+import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory;
 import org.gradle.api.internal.tasks.DefaultSourceSet;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaLibraryPlugin;
@@ -28,7 +30,10 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.plugins.antlr.internal.AntlrSourceVirtualDirectoryImpl;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Factory;
 import org.gradle.internal.deprecation.DeprecatableConfiguration;
+import org.gradle.internal.reflect.Instantiator;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -41,10 +46,18 @@ import java.io.File;
 public class AntlrPlugin implements Plugin<Project> {
     public static final String ANTLR_CONFIGURATION_NAME = "antlr";
     private final ObjectFactory objectFactory;
+    private final DirectoryFileTreeFactory directoryFileTreeFactory;
+    private final Instantiator instantiator;
+    private final Factory<PatternSet> patternSetFactory;
+    private final FileCollectionFactory fileCollectionFactory;
 
     @Inject
-    public AntlrPlugin(ObjectFactory objectFactory) {
+    public AntlrPlugin(ObjectFactory objectFactory, Factory<PatternSet> patternSetFactory, FileCollectionFactory fileCollectionFactory, DirectoryFileTreeFactory directoryFileTreeFactory, Instantiator instantiator) {
+        this.patternSetFactory = patternSetFactory;
+        this.fileCollectionFactory = fileCollectionFactory;
         this.objectFactory = objectFactory;
+        this.directoryFileTreeFactory = directoryFileTreeFactory;
+        this.instantiator = instantiator;
     }
 
     @Override
@@ -74,10 +87,13 @@ public class AntlrPlugin implements Plugin<Project> {
                     public void execute(final SourceSet sourceSet) {
                         // for each source set we will:
                         // 1) Add a new 'antlr' virtual directory mapping
+
+
                         final AntlrSourceVirtualDirectoryImpl antlrDirectoryDelegate
-                                = new AntlrSourceVirtualDirectoryImpl(((DefaultSourceSet) sourceSet).getDisplayName(), objectFactory);
+                                = instantiator.newInstance(AntlrSourceVirtualDirectoryImpl.class, ((DefaultSourceSet) sourceSet).getDisplayName(), objectFactory, patternSetFactory, fileCollectionFactory, directoryFileTreeFactory);
 //                        new DslObject(sourceSet).getConvention().getPlugins().put(
 //                                AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
+                        System.out.println(sourceSet);
                         sourceSet.getExtensions().add(AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
                         final String srcDir = "src/"+ sourceSet.getName() +"/antlr";
                         antlrDirectoryDelegate.getAntlr().srcDir(srcDir);
