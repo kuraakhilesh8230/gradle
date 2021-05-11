@@ -21,7 +21,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.internal.plugins.DslObject;
 import org.gradle.api.internal.tasks.DefaultSourceSet;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaLibraryPlugin;
@@ -68,7 +67,8 @@ public class AntlrPlugin implements Plugin<Project> {
         // Wire the antlr configuration into all antlr tasks
         project.getTasks().withType(AntlrTask.class).configureEach(antlrTask -> antlrTask.getConventionMapping().map("antlrClasspath", () -> project.getConfigurations().getByName(ANTLR_CONFIGURATION_NAME)));
 
-        project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(
+        JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+        javaPluginExtension.getSourceSets().all(
                 new Action<SourceSet>() {
                     @Override
                     public void execute(final SourceSet sourceSet) {
@@ -76,8 +76,9 @@ public class AntlrPlugin implements Plugin<Project> {
                         // 1) Add a new 'antlr' virtual directory mapping
                         final AntlrSourceVirtualDirectoryImpl antlrDirectoryDelegate
                                 = new AntlrSourceVirtualDirectoryImpl(((DefaultSourceSet) sourceSet).getDisplayName(), objectFactory);
-                        new DslObject(sourceSet).getConvention().getPlugins().put(
-                                AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
+//                        new DslObject(sourceSet).getConvention().getPlugins().put(
+//                                AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
+                        sourceSet.getExtensions().add(AntlrSourceVirtualDirectory.NAME, antlrDirectoryDelegate);
                         final String srcDir = "src/"+ sourceSet.getName() +"/antlr";
                         antlrDirectoryDelegate.getAntlr().srcDir(srcDir);
                         sourceSet.getAllSource().source(antlrDirectoryDelegate.getAntlr());
