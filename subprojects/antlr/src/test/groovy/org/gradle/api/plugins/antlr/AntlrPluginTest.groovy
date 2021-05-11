@@ -54,7 +54,6 @@ class AntlrPluginTest extends AbstractProjectBuilderSpec {
 
         and: 'using Action'
         def test = project.sourceSets.test
-        //println test.antlr.getClass()
         test.antlr({ sourceSet ->
             sourceSet.srcDirs = [project.file('src/test/antlr-custom')]
         } as Action)
