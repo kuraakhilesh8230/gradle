@@ -544,7 +544,7 @@ public abstract class DefaultProject extends AbstractPluginAware implements Proj
 
     @Override
     public Convention getConvention() {
-        // TODO (donat) deprecate after all internal usages have been eliminated
+        // TODO (donat) add deprecation logging in Gradle 7.2: https://github.com/gradle/gradle/issues/17176
         return extensibleDynamicObject.getConvention();
     }
 
