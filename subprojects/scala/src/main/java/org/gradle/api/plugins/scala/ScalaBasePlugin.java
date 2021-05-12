@@ -178,7 +178,7 @@ public class ScalaBasePlugin implements Plugin<Project> {
                 String displayName = (String) InvokerHelper.invokeMethod(sourceSet, "getDisplayName", null);
                 Convention sourceSetConvention = (Convention) InvokerHelper.getProperty(sourceSet, "convention");
                 DefaultScalaSourceSet scalaSourceSet = new DefaultScalaSourceSet(displayName, objectFactory, patternSetFactory, fileCollectionFactory, directoryFileTreeFactory);
-                //sourceSetConvention.getPlugins().put("scala", scalaSourceSet);
+                sourceSetConvention.getPlugins().put("scala", scalaSourceSet);
                 sourceSet.getExtensions().add("scala", scalaSourceSet);
 
                 final SourceDirectorySet scalaDirectorySet = scalaSourceSet.getScala();
