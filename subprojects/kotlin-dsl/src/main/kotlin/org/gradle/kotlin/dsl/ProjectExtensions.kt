@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 the original author or authors.
+
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,6 +86,7 @@ inline fun <reified T : Plugin<Project>> Project.apply() =
  * @param configuration the configuration block.
  * @see [Convention.getPlugin]
  */
+@Suppress("deprecation")
 inline fun <reified T : Any> Project.configure(noinline configuration: T.() -> Unit): Unit =
     typeOf<T>().let { type ->
         convention.findByType(type)?.let(configuration)
@@ -96,6 +98,7 @@ inline fun <reified T : Any> Project.configure(noinline configuration: T.() -> U
 /**
  * Returns the plugin convention or extension of the specified type.
  */
+@Suppress("deprecation")
 inline fun <reified T : Any> Project.the(): T =
     typeOf<T>().let { type ->
         convention.findByType(type)
@@ -107,6 +110,7 @@ inline fun <reified T : Any> Project.the(): T =
 /**
  * Returns the plugin convention or extension of the specified type.
  */
+@Suppress("deprecation")
 fun <T : Any> Project.the(extensionType: KClass<T>): T =
     convention.findByType(extensionType.java)
         ?: convention.findPlugin(extensionType.java)

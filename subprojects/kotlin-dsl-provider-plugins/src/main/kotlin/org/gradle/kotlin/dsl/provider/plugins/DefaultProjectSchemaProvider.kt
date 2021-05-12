@@ -62,7 +62,7 @@ data class TargetTypedSchema(
     val containerElements: List<ProjectSchemaEntry<TypeOf<*>>>
 )
 
-
+@Suppress("deprecation")
 internal
 fun targetSchemaFor(target: Any, targetType: TypeOf<*>): TargetTypedSchema {
 

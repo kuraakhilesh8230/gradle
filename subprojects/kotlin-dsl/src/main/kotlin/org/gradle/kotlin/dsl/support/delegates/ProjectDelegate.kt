@@ -81,6 +81,7 @@ abstract class ProjectDelegate : Project {
     override fun getDefaultTasks(): MutableList<String> =
         delegate.defaultTasks
 
+    @Suppress("deprecation")
     override fun getConvention(): Convention =
         delegate.convention
 

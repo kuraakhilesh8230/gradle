@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright 2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.gradle.kotlin.dsl.accessors
 
-import org.gradle.api.internal.HasConvention
 import org.gradle.api.plugins.ExtensionAware
 
 import org.gradle.kotlin.dsl.support.unsafeLazy
@@ -103,7 +102,7 @@ fun conventionAccessor(spec: TypedAccessorSpec): String = spec.run {
     }
 }
 
-
+@Suppress("deprecation")
 private
 fun accessibleConventionAccessorFor(targetType: String, name: AccessorNameSpec, type: String): String = name.run {
     """
@@ -122,7 +121,7 @@ fun accessibleConventionAccessorFor(targetType: String, name: AccessorNameSpec, 
     """
 }
 
-
+@Suppress("deprecation")
 private
 fun inaccessibleConventionAccessorFor(targetType: String, name: AccessorNameSpec, typeAccess: TypeAccessibility.Inaccessible): String = name.run {
     """
@@ -224,10 +223,10 @@ private
 val thisExtensions =
     "(this as ${ExtensionAware::class.java.name}).extensions"
 
-
+@Suppress("deprecation")
 private
 val thisConvention =
-    "((this as? Project)?.convention ?: (this as ${HasConvention::class.java.name}).convention)"
+    "((this as? Project)?.convention ?: (this as ${org.gradle.api.internal.HasConvention::class.java.name}).convention)"
 
 
 internal

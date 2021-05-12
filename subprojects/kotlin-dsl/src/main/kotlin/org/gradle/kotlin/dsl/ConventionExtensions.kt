@@ -20,6 +20,7 @@ import org.gradle.api.plugins.Convention
 
 import org.gradle.kotlin.dsl.accessors.runtime.conventionOf
 import org.gradle.kotlin.dsl.accessors.runtime.conventionPluginByName
+import org.gradle.kotlin.dsl.accessors.runtime.extensionOf
 
 import kotlin.reflect.KClass
 
@@ -97,8 +98,23 @@ fun <T : Any> Convention.findPlugin(conventionType: KClass<T>): T? =
  *
  * @see [Convention.getPlugin]
  */
+@Suppress("deprecation")
 inline fun <ConventionType : Any, ReturnType> Any.withConvention(
     conventionType: KClass<ConventionType>,
     function: ConventionType.() -> ReturnType
 ): ReturnType =
     conventionOf(this).getPlugin(conventionType.java).run(function)
+
+/**
+ * Evaluates the given [function] against the extension of the given [extensionType].
+ *
+ * @param extensionType the type of the extension to be located.
+ * @param function function to be evaluated.
+ * @return the value returned by the given [function].
+ * @throws [IllegalStateException] When the receiver does not have the specified extension defined.
+ */
+inline fun <ExtensionType : Any, ReturnType> Any.withExtension(
+    extensionType: KClass<ExtensionType>,
+    function: ExtensionType.() -> ReturnType
+): ReturnType =
+    extensionOf(this, extensionType.java).run(function)

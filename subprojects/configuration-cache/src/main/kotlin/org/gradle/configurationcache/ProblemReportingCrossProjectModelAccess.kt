@@ -497,6 +497,7 @@ class ProblemReportingCrossProjectModelAccess(
             delegate.artifacts(configureAction)
         }
 
+        @Suppress("deprecation")
         override fun getConvention(): Convention {
             onAccess()
             return delegate.convention
