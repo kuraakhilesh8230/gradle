@@ -5,7 +5,7 @@ plugins {
 
 sourceSets {
     main {
-        withConvention(GroovySourceSet::class) {
+        withExtension(GroovySourceSet::class) {
             groovy.srcDir("src/core/groovy")
         }
     }

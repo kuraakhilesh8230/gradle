@@ -375,7 +375,7 @@ The long term plan is to migrate all Gradle core plugins to use extensions and r
 
 As seen above, the Kotlin DSL provides accessors only for convention objects on `Project`.
 There are situations that require you to interact with a Gradle plugin that uses convention objects on other types.
-The Kotlin DSL provides the `withConvention(T::class) {}` extension function to do this:
+The Kotlin DSL provides the `withExtension(T::class) {}` extension function to do this:
 
 .Configuring source set conventions
 ====

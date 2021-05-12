@@ -17,14 +17,14 @@ dependencies {
 // tag::custom-source-locations[]
 sourceSets {
     main {
-        withConvention(ScalaSourceSet::class) {
+        withExtension(ScalaSourceSet::class) {
             scala {
                 setSrcDirs(listOf("src/scala"))
             }
         }
     }
     test {
-        withConvention(ScalaSourceSet::class) {
+        withExtension(ScalaSourceSet::class) {
             scala {
                 setSrcDirs(listOf("test/scala"))
             }

@@ -123,6 +123,8 @@ tasks.withType<SourceTask>().configureEach {
     }
 }
 
+// TODO (donat) replace withConvention with withExtension once Project.getConvention() is deprecated
+
 val SourceSet.allGroovy: SourceDirectorySet
     get() = withConvention(GroovySourceSet::class) { allGroovy }
 
