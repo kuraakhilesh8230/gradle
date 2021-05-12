@@ -1245,7 +1245,10 @@ public interface Project extends Comparable<Project>, ExtensionAware, PluginAwar
      * as if they were properties and methods of this project. See <a href="#properties">here</a> for more details</p>
      *
      * @return The <code>Convention</code>. Never returns null.
+     *
+     * @deprecated The concept of conventions are considered as legacy. All usages should be replaced with extensions (see {@link #getExtensions()}). This method is scheduled for removal in Gradle 8.0.
      */
+    @Deprecated
     Convention getConvention();
 
     /**

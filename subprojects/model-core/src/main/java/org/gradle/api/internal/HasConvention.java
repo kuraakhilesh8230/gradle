@@ -22,7 +22,10 @@ import org.gradle.api.plugins.Convention;
  * Demarcates objects that expose a convention.
  *
  * Convention objects aren't going to be around forever, so this is a temporary interface.
+ *
+ * @deprecated The concept of conventions are considered as legacy. All usages should be replaced with extensions (see {@link org.gradle.api.plugins.ExtensionAware#getExtensions()}). This interface is scheduled for removal in Gradle 8.0.
  */
+@Deprecated
 public interface HasConvention {
 
     Convention getConvention();
