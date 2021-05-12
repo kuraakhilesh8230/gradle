@@ -26,8 +26,8 @@ import org.gradle.kotlin.dsl.*
 
 
 // TODO these accessors should be generated - https://github.com/gradle/gradle/issues/3191
-
 // TODO change withConvention to withExtension once Project.getConvention() is deprecated
+
 
 val SourceSet.groovy: SourceDirectorySet
     get() = withConvention(GroovySourceSet::class) { groovy }

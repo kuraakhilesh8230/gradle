@@ -20,7 +20,7 @@ import org.junit.Test
 
 
 @Suppress("deprecation")
-class ProjectExtensionsProjectExtensionsTest {
+class ProjectExtensionsTest {
 
     @Test
     fun `can get generic project extension by type`() {

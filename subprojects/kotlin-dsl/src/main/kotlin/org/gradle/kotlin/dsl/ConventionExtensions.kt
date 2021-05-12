@@ -17,11 +17,9 @@
 package org.gradle.kotlin.dsl
 
 import org.gradle.api.plugins.Convention
-
 import org.gradle.kotlin.dsl.accessors.runtime.conventionOf
 import org.gradle.kotlin.dsl.accessors.runtime.conventionPluginByName
 import org.gradle.kotlin.dsl.accessors.runtime.extensionOf
-
 import kotlin.reflect.KClass
 
 
@@ -105,6 +103,7 @@ inline fun <ConventionType : Any, ReturnType> Any.withConvention(
 ): ReturnType =
     conventionOf(this).getPlugin(conventionType.java).run(function)
 
+
 /**
  * Evaluates the given [function] against the extension of the given [extensionType].
  *
@@ -112,6 +111,8 @@ inline fun <ConventionType : Any, ReturnType> Any.withConvention(
  * @param function function to be evaluated.
  * @return the value returned by the given [function].
  * @throws [IllegalStateException] When the receiver does not have the specified extension defined.
+ *
+ * @since 7.1
  */
 inline fun <ExtensionType : Any, ReturnType> Any.withExtension(
     extensionType: KClass<ExtensionType>,
