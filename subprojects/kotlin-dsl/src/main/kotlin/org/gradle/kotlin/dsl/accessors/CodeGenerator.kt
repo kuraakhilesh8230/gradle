@@ -102,6 +102,7 @@ fun conventionAccessor(spec: TypedAccessorSpec): String = spec.run {
     }
 }
 
+
 @Suppress("deprecation")
 private
 fun accessibleConventionAccessorFor(targetType: String, name: AccessorNameSpec, type: String): String = name.run {
@@ -120,6 +121,7 @@ fun accessibleConventionAccessorFor(targetType: String, name: AccessorNameSpec, 
 
     """
 }
+
 
 @Suppress("deprecation")
 private
@@ -222,6 +224,7 @@ fun inaccessibleExistingContainerElementAccessorFor(containerType: String, name:
 private
 val thisExtensions =
     "(this as ${ExtensionAware::class.java.name}).extensions"
+
 
 @Suppress("deprecation")
 private
