@@ -18,29 +18,33 @@ package org.gradle.api.internal.tasks;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
 import org.gradle.api.file.SourceDirectorySet;
+import org.gradle.api.internal.file.DefaultSourceDirectorySet;
+import org.gradle.api.internal.file.FileCollectionFactory;
+import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.reflect.HasPublicType;
 import org.gradle.api.reflect.TypeOf;
 import org.gradle.api.tasks.ScalaSourceSet;
+import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Factory;
 
 import static org.gradle.api.reflect.TypeOf.typeOf;
 import static org.gradle.util.internal.ConfigureUtil.configure;
 
-public class DefaultScalaSourceSet implements ScalaSourceSet, HasPublicType {
-    private final SourceDirectorySet scala;
+public class DefaultScalaSourceSet extends DefaultSourceDirectorySet implements ScalaSourceSet, HasPublicType {
     private final SourceDirectorySet allScala;
 
-    public DefaultScalaSourceSet(String displayName, ObjectFactory objectFactory) {
-        scala = objectFactory.sourceDirectorySet("scala", displayName + " Scala source");
-        scala.getFilter().include("**/*.java", "**/*.scala");
+    public DefaultScalaSourceSet(String displayName, ObjectFactory objectFactory, Factory<PatternSet> patternSetFactory, FileCollectionFactory fileCollectionFactory, DirectoryFileTreeFactory directoryFileTreeFactory) {
+        super("scala", displayName + " Scala source", patternSetFactory, fileCollectionFactory, directoryFileTreeFactory, objectFactory);
+        getFilter().include("**/*.java", "**/*.scala");
         allScala = objectFactory.sourceDirectorySet("allscala", displayName + " Scala source");
         allScala.getFilter().include("**/*.scala");
-        allScala.source(scala);
+        allScala.source(this);
     }
 
     @Override
     public SourceDirectorySet getScala() {
-        return scala;
+        return this;
     }
 
     @Override
