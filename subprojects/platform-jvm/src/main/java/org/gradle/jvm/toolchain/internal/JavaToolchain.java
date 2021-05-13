@@ -78,6 +78,12 @@ public class JavaToolchain implements Describable, JavaInstallationMetadata {
         return javaVersion;
     }
 
+    @Override
+    @Internal
+    public String getImplementationVersion() {
+        return metadata.getImplementationVersion();
+    }
+
     @Internal
     public VersionNumber getToolVersion() {
         return implementationVersion;
