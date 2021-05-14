@@ -11,7 +11,7 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.script
 import java.io.File
 import java.util.LinkedList
 
-const val MAX_PROJECT_NUMBER_IN_BUCKET = 10
+const val MAX_PROJECT_NUMBER_IN_BUCKET = 11
 
 val CROSS_VERSION_BUCKETS = listOf(
     listOf("0.0", "2.8"), // 0.0 <= version < 2.8
@@ -24,7 +24,8 @@ val CROSS_VERSION_BUCKETS = listOf(
     listOf("5.4", "5.5"), // 5.4 <=version < 5.5
     listOf("5.5", "6.1"), // 5.5 <=version < 6.1
     listOf("6.1", "6.4"), // 6.1 <=version < 6.4
-    listOf("6.4", "99.0") // 6.4 <=version < 99.0
+    listOf("6.4", "6.7"), // 6.4 <=version < 6.7
+    listOf("6.7", "99.0") // 6.7 <=version < 99.0
 )
 
 typealias BuildProjectToSubprojectTestClassTimes = Map<String, Map<String, List<TestClassTime>>>
@@ -291,7 +292,7 @@ class SubprojectTestClassTime(val subProject: GradleSubproject, private val test
             // R List<TestClassTime>
             val list = LinkedList(testClassTimes.sortedBy { -it.buildTimeMs })
             val toIntFunction = TestClassTime::buildTimeMs
-            val largeElementSplitFunction: (TestClassTime, Int) -> List<List<TestClassTime>> = { testClassTime: TestClassTime, number: Int -> listOf(listOf(testClassTime)) }
+            val largeElementSplitFunction: (TestClassTime, Int) -> List<List<TestClassTime>> = { testClassTime: TestClassTime, _: Int -> listOf(listOf(testClassTime)) }
             val smallElementAggregateFunction: (List<TestClassTime>) -> List<TestClassTime> = { it }
 
             val buckets: List<List<TestClassTime>> = splitIntoBuckets(list, toIntFunction, largeElementSplitFunction, smallElementAggregateFunction, expectedBucketNumber, Integer.MAX_VALUE)

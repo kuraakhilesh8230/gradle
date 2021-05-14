@@ -16,7 +16,7 @@
 
 package org.gradle.internal.session;
 
-import org.gradle.StartParameter;
+import org.gradle.api.internal.StartParameterInternal;
 import org.gradle.initialization.BuildCancellationToken;
 import org.gradle.initialization.BuildClientMetaData;
 import org.gradle.initialization.BuildEventConsumer;
@@ -37,10 +37,11 @@ public class BuildSessionState implements Closeable {
     private final GradleUserHomeScopeServiceRegistry userHomeScopeServiceRegistry;
     private final ServiceRegistry userHomeServices;
     private final ServiceRegistry sessionScopeServices;
+    private final DefaultBuildSessionContext context;
 
     public BuildSessionState(GradleUserHomeScopeServiceRegistry userHomeScopeServiceRegistry,
                              CrossBuildSessionState crossBuildSessionServices,
-                             StartParameter startParameter,
+                             StartParameterInternal startParameter,
                              BuildRequestMetaData requestMetaData,
                              ClassPath injectedPluginClassPath,
                              BuildCancellationToken buildCancellationToken,
@@ -54,6 +55,7 @@ public class BuildSessionState implements Closeable {
             .parent(crossBuildSessionServices.getServices())
             .provider(new BuildSessionScopeServices(startParameter, requestMetaData, injectedPluginClassPath, buildCancellationToken, buildClientMetaData, buildEventConsumer))
             .build();
+        context = new DefaultBuildSessionContext(sessionScopeServices);
     }
 
     public ServiceRegistry getServices() {
@@ -63,13 +65,8 @@ public class BuildSessionState implements Closeable {
     /**
      * Runs the given action against the build session state. Should be called once only for a given session instance.
      */
-    public <T> T run(Function<BuildSessionContext, T> action) {
-        return action.apply(new BuildSessionContext() {
-            @Override
-            public ServiceRegistry getServices() {
-                return sessionScopeServices;
-            }
-        });
+    public <T> T run(Function<? super BuildSessionContext, T> action) {
+        return action.apply(context);
     }
 
     @Override

@@ -41,9 +41,9 @@ import org.gradle.api.internal.tasks.scala.DefaultScalaPluginExtension;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.Convention;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
-import org.gradle.api.plugins.jvm.internal.JvmEcosystemUtilities;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.plugins.internal.JvmPluginsHelper;
+import org.gradle.api.plugins.jvm.internal.JvmEcosystemUtilities;
 import org.gradle.api.reporting.ReportingExtension;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.ScalaRuntime;
@@ -54,6 +54,7 @@ import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.scala.IncrementalCompileOptions;
 import org.gradle.api.tasks.scala.ScalaCompile;
 import org.gradle.api.tasks.scala.ScalaDoc;
+import org.gradle.internal.deprecation.DeprecatableConfiguration;
 import org.gradle.jvm.tasks.Jar;
 
 import javax.inject.Inject;
@@ -123,6 +124,9 @@ public class ScalaBasePlugin implements Plugin<Project> {
         Configuration zinc = project.getConfigurations().create(ZINC_CONFIGURATION_NAME);
         zinc.setVisible(false);
         zinc.setDescription("The Zinc incremental compiler to be used for this Scala project.");
+        ((DeprecatableConfiguration) zinc).deprecateForConsumption(deprecation -> deprecation
+            .willBecomeAnErrorInGradle8()
+            .withUpgradeGuideSection(7, "plugin_configuration_consumption"));
 
         zinc.getResolutionStrategy().eachDependency(rule -> {
             if (rule.getRequested().getGroup().equals("com.typesafe.zinc") && rule.getRequested().getName().equals("zinc")) {
@@ -162,7 +166,7 @@ public class ScalaBasePlugin implements Plugin<Project> {
     }
 
     private static void configureSourceSetDefaults(final Project project, final Usage incrementalAnalysisUsage, final ObjectFactory objectFactory) {
-        project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().all(new Action<SourceSet>() {
+        project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(new Action<SourceSet>() {
             @Override
             public void execute(final SourceSet sourceSet) {
                 String displayName = (String) InvokerHelper.invokeMethod(sourceSet, "getDisplayName", null);
@@ -285,8 +289,7 @@ public class ScalaBasePlugin implements Plugin<Project> {
                 scalaDoc.getConventionMapping().map("destinationDir", new Callable<File>() {
                     @Override
                     public File call() throws Exception {
-                        File docsDir = project.getConvention().getPlugin(JavaPluginConvention.class).getDocsDir();
-                        return project.file(docsDir.getPath() + "/scaladoc");
+                        return project.getExtensions().getByType(JavaPluginExtension.class).getDocsDir().dir("scaladoc").get().getAsFile();
                     }
                 });
                 scalaDoc.getConventionMapping().map("title", new Callable<String>() {

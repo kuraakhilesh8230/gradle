@@ -29,6 +29,7 @@ import org.gradle.api.internal.GradleInternal
 import org.gradle.api.internal.TaskInternal
 import org.gradle.api.internal.project.BuildOperationCrossProjectConfigurator
 import org.gradle.api.internal.project.ProjectInternal
+import org.gradle.api.internal.project.ProjectState
 import org.gradle.api.internal.project.taskfactory.ITaskFactory
 import org.gradle.api.internal.project.taskfactory.TaskFactory
 import org.gradle.api.internal.project.taskfactory.TaskIdentity
@@ -36,7 +37,6 @@ import org.gradle.api.internal.project.taskfactory.TaskInstantiator
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskDependency
-import org.gradle.initialization.ProjectAccessListener
 import org.gradle.internal.reflect.DirectInstantiator
 import org.gradle.internal.service.ServiceRegistry
 import org.gradle.util.Path
@@ -61,28 +61,26 @@ class DefaultTaskContainerTest extends AbstractPolymorphicDomainObjectContainerS
         getObjects() >> Stub(ObjectFactory)
     }
     private taskCount = 1
-    private accessListener = Mock(ProjectAccessListener)
     private container = new DefaultTaskContainerFactory(
         DirectInstantiator.INSTANCE,
         taskFactory,
         project,
-        accessListener,
         new TaskStatistics(),
         buildOperationExecutor,
         new BuildOperationCrossProjectConfigurator(buildOperationExecutor),
         callbackActionDecorator
     ).create()
 
-    final boolean supportsBuildOperations = true
+    boolean supportsBuildOperations = true
 
     @Override
     final PolymorphicDomainObjectContainer<Task> getContainer() {
         return container
     }
 
-    final boolean externalProviderAllowed = false
-    final boolean directElementAdditionAllowed = false
-    final boolean elementRemovalAllowed = false
+    boolean externalProviderAllowed = false
+    boolean directElementAdditionAllowed = false
+    boolean elementRemovalAllowed = false
 
     @Override
     protected void addToContainer(Task element) {
@@ -484,23 +482,12 @@ class DefaultTaskContainerTest extends AbstractPolymorphicDomainObjectContainerS
         container.findByPath(":unknown:task") == null
     }
 
-    void "searching by path ensures the other project is evaluated"() {
-        given:
-        def otherProject = expectTaskLookupInOtherProject(":other", "task", null)
-
-        when:
-        container.findByPath(":other:task")
-
-        then:
-        1 * accessListener.beforeRequestingTaskByPath(otherProject)
-    }
-
     void "does not find unknown tasks by path"() {
         when:
         expectTaskLookupInOtherProject(":other", "task", null)
 
         then:
-        container.findByPath(":other:task") >> null
+        container.findByPath(":other:task") == null
     }
 
     void "gets task by path"() {
@@ -1472,17 +1459,17 @@ class DefaultTaskContainerTest extends AbstractPolymorphicDomainObjectContainerS
     }
 
     def factory = new TaskInstantiator(new TaskFactory().createChild(project, TestUtil.instantiatorFactory().decorateScheme()), project)
-    final SomeTask a = factory.create("a", SomeTask)
-    final SomeTask b = factory.create("b", SomeTask)
-    final SomeTask c = factory.create("c", SomeTask)
-    final SomeOtherTask d = factory.create("d", SomeOtherTask)
+    SomeTask a = factory.create("a", SomeTask)
+    SomeTask b = factory.create("b", SomeTask)
+    SomeTask c = factory.create("c", SomeTask)
+    SomeOtherTask d = factory.create("d", SomeOtherTask)
 
     static class SomeTask extends DefaultTask {}
 
     static class SomeOtherTask extends DefaultTask {}
 
-    final Class<SomeTask> type = SomeTask
-    final Class<SomeOtherTask> otherType = SomeOtherTask
+    Class<SomeTask> type = SomeTask
+    Class<SomeOtherTask> otherType = SomeOtherTask
 
     @Override
     void setupContainerDefaults() {
@@ -1611,9 +1598,13 @@ class DefaultTaskContainerTest extends AbstractPolymorphicDomainObjectContainerS
     private ProjectInternal expectTaskLookupInOtherProject(final String projectPath, final String taskName, def task) {
         def otherProject = Mock(ProjectInternal)
         def otherTaskContainer = Mock(TaskContainerInternal)
+        def otherProjectState = Mock(ProjectState)
 
         project.findProject(projectPath) >> otherProject
-        otherProject.getTasks() >> otherTaskContainer
+
+        otherProject.owner >> otherProjectState
+        1 * otherProjectState.ensureTasksDiscovered()
+        otherProject.tasks >> otherTaskContainer
 
         otherTaskContainer.findByName(taskName) >> task
 

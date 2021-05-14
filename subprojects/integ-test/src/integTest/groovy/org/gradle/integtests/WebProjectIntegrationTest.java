@@ -29,7 +29,7 @@ public class WebProjectIntegrationTest extends AbstractIntegrationTest {
         );
         testFile("src/main/webapp/index.jsp").write("<p>hi</p>");
 
-        usingBuildFile(buildFile).withTasks("assemble").run();
+        executer.withTasks("assemble").run();
         testFile("build/libs/test.war").assertIsFile();
     }
 
@@ -40,13 +40,15 @@ public class WebProjectIntegrationTest extends AbstractIntegrationTest {
         buildFile.writelns(
                 "apply plugin: 'war'",
                 "buildDir = 'output'",
-                "libsDirName = 'archives'",
-                "archivesBaseName = 'test'",
+                "base {",
+                "    archivesName = 'test'",
+                "    libsDirectory = layout.buildDirectory.dir('archives')",
+                "}",
                 "version = '0.5-RC2'"
         );
         testFile("src/main/resources/org/gradle/resource.file").write("some resource");
 
-        usingBuildFile(buildFile).withTasks("assemble").run();
+        executer.withTasks("assemble").run();
         testFile("output/archives/test-0.5-RC2.war").assertIsFile();
     }
 
@@ -60,7 +62,7 @@ public class WebProjectIntegrationTest extends AbstractIntegrationTest {
         );
         testFile("src/main/resources/org/gradle/resource.file").write("some resource");
 
-        usingBuildFile(buildFile).withTasks("assemble").run();
+        executer.withTasks("assemble").run();
         testFile("build/libs/empty.war").assertIsFile();
     }
 

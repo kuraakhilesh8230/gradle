@@ -22,7 +22,7 @@ import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
 import spock.lang.Issue
 
-import static org.gradle.util.TextUtil.escapeString
+import static org.gradle.util.internal.TextUtil.escapeString
 
 @Issue("https://github.com/gradle/gradle/issues/1498")
 class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
@@ -89,6 +89,47 @@ class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
         skipped(':compileJava')
         executedAndNotSkipped(':compileScala')
         new File(testDirectory, 'generated.txt').exists()
+    }
+
+    def "processes annotation for Java class with processor option if annotation processor is available on processor path"() {
+        when:
+        AnnotationProcessorPublisher annotationProcessorPublisher = new AnnotationProcessorPublisher()
+        annotationProcessorPublisher.writeSourceFiles()
+        inDirectory(annotationProcessorPublisher.projectDir).withTasks('publish').run()
+
+        then:
+        annotationProcessorPublisher.publishedJarFile.isFile()
+        annotationProcessorPublisher.publishedPomFile.isFile()
+
+        when:
+        buildFile << basicScalaProject()
+        buildFile << annotationProcessorDependency(annotationProcessorPublisher.repoDir, annotationProcessorPublisher.dependencyCoordinates)
+        buildFile << """
+            configurations.annotationProcessor.extendsFrom configurations.compileOnly
+            compileScala.options.compilerArgumentProviders.add(new FileNameProvider("foo"))
+
+            class FileNameProvider implements CommandLineArgumentProvider {
+                @Internal
+                String fileName
+
+                FileNameProvider(String fileName) {
+                    this.fileName = fileName
+                }
+
+                @Override
+                List<String> asArguments() {
+                    ["-AfileName=\${fileName}".toString()]
+                }
+            }
+        """
+        file('src/main/scala/MyClass.java') << javaClassWithCustomAnnotation()
+
+        succeeds 'compileScala'
+
+        then:
+        skipped(':compileJava')
+        executedAndNotSkipped(':compileScala')
+        new File(testDirectory, 'foo.txt').exists()
     }
 
     def "cannot use external annotation processor for Java class, from classpath"() {
@@ -260,6 +301,7 @@ class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
                 import javax.annotation.processing.*;
                 import javax.lang.model.SourceVersion;
                 import javax.lang.model.element.TypeElement;
+                import java.util.Collections;
                 import java.util.Set;
                 import java.io.PrintStream;
                 import java.io.File;
@@ -272,8 +314,10 @@ class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
                     public synchronized void init(ProcessingEnvironment processingEnv) {
                         super.init(processingEnv);
 
+                        String fileName = processingEnv.getOptions().getOrDefault("fileName", "generated");
+
                         try {
-                            new File("${escapeString(testDirectory.absolutePath)}/generated.txt").createNewFile();
+                            new File("${escapeString(testDirectory.absolutePath)}/" + fileName + ".txt").createNewFile();
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -282,6 +326,11 @@ class ScalaAnnotationProcessingIntegrationTest extends AbstractIntegrationSpec {
                     @Override
                     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
                         return false;
+                    }
+
+                    @Override
+                    public Set<String> getSupportedOptions() {
+                        return Collections.singleton("fileName");
                     }
                 }
             """

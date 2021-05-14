@@ -16,11 +16,11 @@
 
 package org.gradle.internal.buildtree;
 
-import org.gradle.api.internal.BuildType;
 import org.gradle.internal.concurrent.CompositeStoppable;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.service.ServiceRegistryBuilder;
-import org.gradle.internal.service.scopes.BuildTreeScopeInitializer;
+import org.gradle.internal.service.scopes.Scopes;
+import org.gradle.internal.service.scopes.ServiceScope;
 
 import java.io.Closeable;
 import java.util.function.Function;
@@ -28,18 +28,18 @@ import java.util.function.Function;
 /**
  * Encapsulates the state for a particular build tree.
  */
+@ServiceScope(Scopes.BuildTree.class)
 public class BuildTreeState implements Closeable {
     private final ServiceRegistry services;
+    private final DefaultBuildTreeContext context;
 
-    public BuildTreeState(ServiceRegistry parent, BuildType buildType, BuildTreeBuildPath buildTreeBuildPath) {
+    public BuildTreeState(ServiceRegistry parent, BuildTreeModelControllerServices.Supplier modelServices) {
         services = ServiceRegistryBuilder.builder()
             .displayName("build tree services")
             .parent(parent)
-            .provider(new BuildTreeScopeServices(this, buildType, buildTreeBuildPath))
+            .provider(new BuildTreeScopeServices(this, modelServices))
             .build();
-
-        // This initialization construct should be generalized for all types of service registries.
-        services.getAll(BuildTreeScopeInitializer.class).forEach(BuildTreeScopeInitializer::initializeBuildTreeScope);
+        context = new DefaultBuildTreeContext(services);
     }
 
     public ServiceRegistry getServices() {
@@ -49,8 +49,8 @@ public class BuildTreeState implements Closeable {
     /**
      * Runs the given action against the state of this build tree.
      */
-    public <T> T run(Function<BuildTreeContext, T> action) {
-        return action.apply(() -> services);
+    public <T> T run(Function<? super BuildTreeContext, T> action) {
+        return action.apply(context);
     }
 
     @Override

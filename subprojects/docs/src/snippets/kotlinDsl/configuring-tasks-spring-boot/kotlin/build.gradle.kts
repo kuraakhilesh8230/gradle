@@ -5,7 +5,7 @@ import org.springframework.boot.gradle.tasks.run.BootRun
 // tag::accessors[]
 plugins {
     java
-    id("org.springframework.boot") version "2.3.4.RELEASE"
+    id("org.springframework.boot") version "2.4.5"
 }
 
 // end::lazy[]
@@ -18,7 +18,7 @@ tasks.bootJar {
 }
 
 tasks.bootRun {
-    main = "com.example.demo.Demo"
+    mainClass.set("com.example.demo.Demo")
     args("--spring.profiles.active=demo")
 }
 // end::accessors[]
@@ -30,7 +30,7 @@ tasks.named<BootJar>("bootJar") {
 }
 
 tasks.named<BootRun>("bootRun") {
-    main = "com.example.demo.Demo"
+    mainClass.set("com.example.demo.Demo")
     args("--spring.profiles.active=demo")
 }
 // end::lazy[]

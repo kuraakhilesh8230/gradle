@@ -16,27 +16,33 @@
 
 package org.gradle.initialization;
 
-import org.gradle.api.internal.StartParameterInternal;
+import org.gradle.internal.buildtree.BuildModelParameters;
+import org.gradle.internal.buildtree.BuildTreeLifecycleListener;
 import org.gradle.internal.configurationcache.options.ConfigurationCacheSettingsFinalizedProgressDetails;
 import org.gradle.internal.operations.BuildOperationProgressEventEmitter;
+import org.gradle.internal.service.scopes.Scopes;
+import org.gradle.internal.service.scopes.ServiceScope;
 
 import javax.inject.Inject;
 
-public class BuildOptionBuildOperationProgressEventsEmitter {
+@ServiceScope(Scopes.BuildTree.class)
+public class BuildOptionBuildOperationProgressEventsEmitter implements BuildTreeLifecycleListener {
 
     private final BuildOperationProgressEventEmitter eventEmitter;
+    private final BuildModelParameters buildModelParameters;
 
     @Inject
-    public BuildOptionBuildOperationProgressEventsEmitter(BuildOperationProgressEventEmitter eventEmitter) {
+    public BuildOptionBuildOperationProgressEventsEmitter(BuildOperationProgressEventEmitter eventEmitter, BuildModelParameters buildModelParameters) {
         this.eventEmitter = eventEmitter;
+        this.buildModelParameters = buildModelParameters;
     }
 
-    @SuppressWarnings({"Anonymous2MethodRef", "Convert2Lambda"})
-    public void emit(StartParameterInternal startParameterInternal) {
+    @Override
+    public void afterStart() {
         eventEmitter.emitNowForCurrent(new ConfigurationCacheSettingsFinalizedProgressDetails() {
             @Override
             public boolean isEnabled() {
-                return startParameterInternal.isConfigurationCache();
+                return buildModelParameters.isConfigurationCache();
             }
         });
     }

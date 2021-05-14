@@ -24,8 +24,8 @@ import org.gradle.api.file.ProjectLayout
 import org.gradle.api.internal.GradleInternal
 import org.gradle.api.internal.StartParameterInternal
 import org.gradle.api.internal.initialization.ClassLoaderScope
-import org.gradle.api.internal.project.IProjectFactory
 import org.gradle.api.internal.project.ProjectInternal
+import org.gradle.api.internal.project.ProjectStateRegistry
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Classpath
@@ -40,6 +40,7 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.groovy.scripts.TextResourceScriptSource
 import org.gradle.initialization.BuildLayoutParameters
 import org.gradle.initialization.ClassLoaderScopeRegistry
+import org.gradle.initialization.DefaultProjectDescriptor
 import org.gradle.internal.Try
 import org.gradle.internal.build.NestedRootBuildRunner.createNestedRootBuild
 import org.gradle.internal.classpath.CachedClasspathTransformer
@@ -48,7 +49,6 @@ import org.gradle.internal.classpath.DefaultClassPath
 import org.gradle.internal.concurrent.CompositeStoppable.stoppable
 import org.gradle.internal.exceptions.LocationAwareException
 import org.gradle.internal.hash.HashCode
-import org.gradle.internal.invocation.GradleBuildController
 import org.gradle.internal.resource.TextFileResourceLoader
 import org.gradle.kotlin.dsl.accessors.AccessorFormats
 import org.gradle.kotlin.dsl.accessors.ProjectSchemaProvider
@@ -322,10 +322,8 @@ abstract class GeneratePrecompiledScriptPluginAccessors @Inject internal constru
         val projectDir = uniqueTempDirectory()
         val startParameter = projectSchemaBuildStartParameterFor(projectDir)
         return createNestedRootBuild("$path:${projectDir.name}", startParameter, services).run { controller ->
-            require(controller is GradleBuildController)
-            controller.doBuild {
+            controller.withEmptyBuild { settings ->
                 Try.ofFailable {
-                    val settings = controller.launcher.loadedSettings
                     val gradle = settings.gradle
                     val baseScope = coreAndPluginsScopeOf(gradle).createChild("accessors-classpath").apply {
                         // we export the build logic classpath to the base scope here so that all referenced plugins
@@ -334,13 +332,10 @@ abstract class GeneratePrecompiledScriptPluginAccessors @Inject internal constru
                         lock()
                     }
                     val rootProjectScope = baseScope.createChild("accessors-root-project")
-                    val rootProject = gradle.serviceOf<IProjectFactory>().createProject(
-                        gradle,
-                        settings.rootProject.apply { name = "gradle-kotlin-dsl-accessors" },
-                        null,
-                        rootProjectScope,
-                        baseScope
-                    )
+                    settings.rootProject.name = "gradle-kotlin-dsl-accessors"
+                    val projectState = gradle.serviceOf<ProjectStateRegistry>().registerProject(gradle.owner, settings.rootProject as DefaultProjectDescriptor)
+                    projectState.createMutableModel(rootProjectScope, baseScope)
+                    val rootProject = projectState.mutableModel
                     gradle.rootProject = rootProject
                     gradle.defaultProject = rootProject
                     rootProject.run {
@@ -354,8 +349,7 @@ abstract class GeneratePrecompiledScriptPluginAccessors @Inject internal constru
 
     private
     fun projectSchemaBuildStartParameterFor(projectDir: File): ProjectSchemaBuildStartParameter =
-        services.get<StartParameter>().let { startParameter ->
-            require(startParameter is StartParameterInternal)
+        services.get<StartParameterInternal>().let { startParameter ->
             ProjectSchemaBuildStartParameter(
                 BuildLayoutParameters(
                     startParameter.gradleHomeDir,
@@ -380,8 +374,8 @@ abstract class GeneratePrecompiledScriptPluginAccessors @Inject internal constru
         }
 
         override fun getAllInitScripts(): List<File> = emptyList()
-        override fun newInstance(): StartParameter = throw UnsupportedOperationException()
-        override fun newBuild(): StartParameter = throw UnsupportedOperationException()
+        override fun newInstance(): StartParameterInternal = throw UnsupportedOperationException()
+        override fun newBuild(): StartParameterInternal = throw UnsupportedOperationException()
     }
 
     private

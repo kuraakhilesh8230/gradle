@@ -35,9 +35,10 @@ import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.plugins.GroovyBasePlugin;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.plugins.JavaTestFixturesPlugin;
 import org.gradle.api.plugins.WarPlugin;
+import org.gradle.api.plugins.jvm.internal.JvmEcosystemUtilities;
 import org.gradle.api.plugins.scala.ScalaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -82,11 +83,15 @@ public class EclipsePlugin extends IdePlugin {
 
     private final UniqueProjectNameProvider uniqueProjectNameProvider;
     private final IdeArtifactRegistry artifactRegistry;
+    private final JvmEcosystemUtilities jvmEcosystemUtilities;
 
     @Inject
-    public EclipsePlugin(UniqueProjectNameProvider uniqueProjectNameProvider, IdeArtifactRegistry artifactRegistry) {
+    public EclipsePlugin(UniqueProjectNameProvider uniqueProjectNameProvider,
+                         IdeArtifactRegistry artifactRegistry,
+                         JvmEcosystemUtilities jvmEcosystemUtilities) {
         this.uniqueProjectNameProvider = uniqueProjectNameProvider;
         this.artifactRegistry = artifactRegistry;
+        this.jvmEcosystemUtilities = jvmEcosystemUtilities;
     }
 
     @Override
@@ -219,7 +224,7 @@ public class EclipsePlugin extends IdePlugin {
                 XmlTransformer xmlTransformer = new XmlTransformer();
                 xmlTransformer.setIndentation("\t");
                 model.getClasspath().setFile(new XmlFileContentMerger(xmlTransformer));
-                model.getClasspath().setSourceSets(project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets());
+                model.getClasspath().setSourceSets(project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets());
 
                 AfterEvaluateHelper.afterEvaluateOrExecute(project, new Action<Project>() {
                     @Override
@@ -246,7 +251,7 @@ public class EclipsePlugin extends IdePlugin {
                 ((IConventionAware) model.getClasspath()).getConventionMapping().map("plusConfigurations", new Callable<Collection<Configuration>>() {
                     @Override
                     public Collection<Configuration> call() {
-                        SourceSetContainer sourceSets = project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+                        SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
                         List<Configuration> sourceSetsConfigurations = Lists.newArrayListWithCapacity(sourceSets.size() * 2);
                         ConfigurationContainer configurations = project.getConfigurations();
                         for (SourceSet sourceSet : sourceSets) {
@@ -261,7 +266,7 @@ public class EclipsePlugin extends IdePlugin {
                     @Override
                     public List<File> call() {
                         List<File> result = Lists.newArrayList();
-                        for (SourceSet sourceSet : project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()) {
+                        for (SourceSet sourceSet : project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets()) {
                             result.addAll(sourceSet.getOutput().getDirs().getFiles());
                         }
                         return result;
@@ -271,7 +276,7 @@ public class EclipsePlugin extends IdePlugin {
                 task.configure(new Action<GenerateEclipseClasspath>() {
                     @Override
                     public void execute(GenerateEclipseClasspath task) {
-                        for (SourceSet sourceSet : project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()) {
+                        for (SourceSet sourceSet : project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets()) {
                             task.dependsOn(sourceSet.getOutput().getDirs());
                         }
                     }
@@ -287,7 +292,7 @@ public class EclipsePlugin extends IdePlugin {
         });
     }
 
-    private static void configureScalaDependencies(final Project project, final EclipseModel model) {
+    private void configureScalaDependencies(final Project project, final EclipseModel model) {
         project.getPlugins().withType(ScalaBasePlugin.class, new Action<ScalaBasePlugin>() {
             @Override
             public void execute(ScalaBasePlugin scalaBasePlugin) {
@@ -305,7 +310,9 @@ public class EclipsePlugin extends IdePlugin {
 
                     })), dependencyInProvided));
                     if (!dependencies.isEmpty()) {
-                        model.getClasspath().getMinusConfigurations().add(project.getConfigurations().detachedConfiguration(dependencies.toArray(new Dependency[0])));
+                        Configuration detachedScalaConfiguration = project.getConfigurations().detachedConfiguration(dependencies.toArray(new Dependency[0]));
+                        jvmEcosystemUtilities.configureAsRuntimeClasspath(detachedScalaConfiguration);
+                        model.getClasspath().getMinusConfigurations().add(detachedScalaConfiguration);
                     }
                 });
             }
@@ -334,21 +341,21 @@ public class EclipsePlugin extends IdePlugin {
                 conventionMapping.map("sourceCompatibility", new Callable<JavaVersion>() {
                     @Override
                     public JavaVersion call() {
-                        return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceCompatibility();
+                        return project.getExtensions().getByType(JavaPluginExtension.class).getSourceCompatibility();
                     }
 
                 });
                 conventionMapping.map("targetCompatibility", new Callable<JavaVersion>() {
                     @Override
                     public JavaVersion call() {
-                        return project.getConvention().getPlugin(JavaPluginConvention.class).getTargetCompatibility();
+                        return project.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility();
                     }
 
                 });
                 conventionMapping.map("javaRuntimeName", new Callable<String>() {
                     @Override
                     public String call() {
-                        return eclipseJavaRuntimeNameFor(project.getConvention().getPlugin(JavaPluginConvention.class).getTargetCompatibility());
+                        return eclipseJavaRuntimeNameFor(project.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility());
                     }
 
                 });

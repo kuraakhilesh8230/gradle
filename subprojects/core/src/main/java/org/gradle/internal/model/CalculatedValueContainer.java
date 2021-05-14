@@ -39,6 +39,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>Note that when used as a work node, any failure to calculate the value is collected and not rethrown. This means that the node is considered to have succeeded and any dependent
  * nodes will execute, and the exception will be rethrown when the value is queried.
  * </p>
+ *
+ * <p>You should use {@link CalculatedValueContainerFactory} to create instances of this type.</p>
  */
 @ThreadSafe
 public class CalculatedValueContainer<T, S extends ValueCalculator<? extends T>> implements CalculatedValue<T>, WorkNodeAction {
@@ -145,7 +147,7 @@ public class CalculatedValueContainer<T, S extends ValueCalculator<? extends T>>
     public ModelContainer<?> getResourceToLock() {
         CalculationState<T, S> calculationState = this.calculationState;
         if (calculationState != null && calculationState.supplier.usesMutableProjectState()) {
-            return calculationState.supplier.getOwningProject().getMutationState();
+            return calculationState.supplier.getOwningProject().getOwner();
         } else {
             return RootScriptDomainObjectContext.INSTANCE.getModel();
         }

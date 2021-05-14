@@ -16,23 +16,15 @@
 
 package org.gradle.api.internal.tasks.compile;
 
-import org.gradle.api.tasks.compile.GroovyCompileOptions;
-
 import java.io.File;
 import java.util.List;
 
 public interface GroovyCompileSpec extends JvmLanguageCompileSpec {
-    GroovyCompileOptions getGroovyCompileOptions();
+    MinimalGroovyCompileOptions getGroovyCompileOptions();
 
     List<File> getGroovyClasspath();
 
     void setGroovyClasspath(List<File> classpath);
 
-    File getCompilationMappingFile();
-
-    void setCompilationMappingFile(File compilationMappingFile);
-
-    default boolean incrementalCompilationEnabled() {
-        return getCompilationMappingFile() != null;
-    }
+    boolean incrementalCompilationEnabled();
 }

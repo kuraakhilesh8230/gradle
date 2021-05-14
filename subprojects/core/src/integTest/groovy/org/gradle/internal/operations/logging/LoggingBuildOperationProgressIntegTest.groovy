@@ -20,6 +20,7 @@ import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.BuildOperationsFixture
 import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.internal.logging.events.LogEvent
 import org.gradle.internal.logging.events.OutputEvent
 import org.gradle.internal.logging.events.operations.LogEventBuildOperationProgressDetails
@@ -40,7 +41,7 @@ import org.junit.Rule
 
 import java.util.regex.Pattern
 
-import static org.gradle.util.TextUtil.getPlatformLineSeparator
+import static org.gradle.util.internal.TextUtil.getPlatformLineSeparator
 
 class LoggingBuildOperationProgressIntegTest extends AbstractIntegrationSpec {
 
@@ -425,8 +426,12 @@ class LoggingBuildOperationProgressIntegTest extends AbstractIntegrationSpec {
             .flatten()
             .with { it as List<BuildOperationRecord.Progress> }
             .findAll { OutputEvent.isAssignableFrom(it.detailsType) }
-        assert progressOutputEvents
-            .size() == 14 // 11 tasks + "\n" + "BUILD SUCCESSFUL" + "2 actionable tasks: 2 executed" +
+
+        // 11 tasks + "\n" + "BUILD SUCCESSFUL" + "2 actionable tasks: 2 executed"
+        // when configuration cache is enabled also "Configuration cache entry reused."
+        def expectedEvents = GradleContextualExecuter.configCache ? 15 : 14
+
+        assert progressOutputEvents.size() == expectedEvents
     }
 
     private void assertNestedTaskOutputTracked(String projectPath = ':nested') {

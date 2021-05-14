@@ -110,6 +110,8 @@ import org.gradle.api.internal.artifacts.repositories.transport.RepositoryTransp
 import org.gradle.api.internal.artifacts.verification.signatures.DefaultSignatureVerificationServiceFactory;
 import org.gradle.api.internal.artifacts.verification.signatures.SignatureVerificationServiceFactory;
 import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
+import org.gradle.api.internal.catalog.DefaultDependenciesAccessors;
+import org.gradle.api.internal.catalog.DependenciesAccessorsWorkspaceProvider;
 import org.gradle.api.internal.file.FileCollectionFactory;
 import org.gradle.api.internal.file.FileResolver;
 import org.gradle.api.internal.file.temp.TemporaryFileProvider;
@@ -121,14 +123,10 @@ import org.gradle.api.internal.notations.ClientModuleNotationParserFactory;
 import org.gradle.api.internal.notations.DependencyConstraintNotationParser;
 import org.gradle.api.internal.notations.DependencyNotationParser;
 import org.gradle.api.internal.notations.ProjectDependencyFactory;
-import org.gradle.api.internal.project.ProjectInternal;
-import org.gradle.api.internal.project.ProjectRegistry;
 import org.gradle.api.internal.project.ProjectStateRegistry;
 import org.gradle.api.internal.properties.GradleProperties;
 import org.gradle.api.internal.resources.ApiTextResourceAdapter;
 import org.gradle.api.internal.runtimeshaded.RuntimeShadedJarFactory;
-import org.gradle.api.internal.catalog.DefaultDependenciesAccessors;
-import org.gradle.api.internal.catalog.DependenciesAccessorsWorkspaceProvider;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.cache.CacheRepository;
@@ -140,8 +138,8 @@ import org.gradle.cache.internal.ProducerGuard;
 import org.gradle.caching.internal.origin.OriginMetadata;
 import org.gradle.configuration.internal.UserCodeApplicationContext;
 import org.gradle.initialization.DependenciesAccessors;
-import org.gradle.initialization.internal.InternalBuildFinishedListener;
 import org.gradle.initialization.ProjectAccessListener;
+import org.gradle.initialization.internal.InternalBuildFinishedListener;
 import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.initialization.layout.ProjectCacheDir;
 import org.gradle.internal.Try;
@@ -155,12 +153,12 @@ import org.gradle.internal.component.model.PersistentModuleSource;
 import org.gradle.internal.event.ListenerManager;
 import org.gradle.internal.execution.ExecutionEngine;
 import org.gradle.internal.execution.ExecutionResult;
-import org.gradle.internal.execution.InputFingerprinter;
 import org.gradle.internal.execution.OutputChangeListener;
 import org.gradle.internal.execution.OutputSnapshotter;
 import org.gradle.internal.execution.UnitOfWork;
 import org.gradle.internal.execution.WorkValidationContext;
 import org.gradle.internal.execution.caching.CachingState;
+import org.gradle.internal.execution.fingerprint.InputFingerprinter;
 import org.gradle.internal.execution.history.AfterPreviousExecutionState;
 import org.gradle.internal.execution.history.BeforeExecutionState;
 import org.gradle.internal.execution.history.ExecutionHistoryStore;
@@ -168,7 +166,6 @@ import org.gradle.internal.execution.history.OverlappingOutputDetector;
 import org.gradle.internal.execution.history.changes.ExecutionStateChangeDetector;
 import org.gradle.internal.execution.impl.DefaultExecutionEngine;
 import org.gradle.internal.execution.steps.AssignWorkspaceStep;
-import org.gradle.internal.execution.steps.BeforeExecutionContext;
 import org.gradle.internal.execution.steps.BroadcastChangingOutputsStep;
 import org.gradle.internal.execution.steps.CachingContext;
 import org.gradle.internal.execution.steps.CachingResult;
@@ -188,11 +185,11 @@ import org.gradle.internal.execution.steps.StoreExecutionStateStep;
 import org.gradle.internal.execution.steps.TimeoutStep;
 import org.gradle.internal.execution.steps.UpToDateResult;
 import org.gradle.internal.execution.steps.ValidateStep;
+import org.gradle.internal.execution.steps.ValidationFinishedContext;
 import org.gradle.internal.execution.timeout.TimeoutHandler;
 import org.gradle.internal.file.Deleter;
 import org.gradle.internal.file.RelativeFilePathResolver;
 import org.gradle.internal.fingerprint.CurrentFileCollectionFingerprint;
-import org.gradle.internal.fingerprint.classpath.ClasspathFingerprinter;
 import org.gradle.internal.hash.ChecksumService;
 import org.gradle.internal.hash.ClassLoaderHierarchyHasher;
 import org.gradle.internal.hash.FileHasher;
@@ -231,7 +228,7 @@ import org.gradle.internal.snapshot.ValueSnapshot;
 import org.gradle.internal.snapshot.ValueSnapshotter;
 import org.gradle.internal.typeconversion.NotationParser;
 import org.gradle.internal.vfs.VirtualFileSystem;
-import org.gradle.util.BuildCommencedTimeProvider;
+import org.gradle.util.internal.BuildCommencedTimeProvider;
 import org.gradle.util.internal.SimpleMapInterner;
 
 import java.io.File;
@@ -635,8 +632,12 @@ class DependencyManagementBuildScopeServices {
         return new DefaultProjectPublicationRegistry();
     }
 
-    LocalComponentProvider createProjectComponentProvider(ProjectStateRegistry projectStateRegistry, ProjectRegistry<ProjectInternal> projectRegistry, LocalComponentMetadataBuilder metaDataBuilder, ImmutableModuleIdentifierFactory moduleIdentifierFactory, BuildState currentBuild) {
-        return new DefaultProjectLocalComponentProvider(projectStateRegistry, projectRegistry, metaDataBuilder, moduleIdentifierFactory, currentBuild.getBuildIdentifier());
+    LocalComponentProvider createProjectComponentProvider(ProjectStateRegistry projectStateRegistry,
+                                                          LocalComponentMetadataBuilder metaDataBuilder,
+                                                          ImmutableModuleIdentifierFactory moduleIdentifierFactory,
+                                                          BuildState currentBuild,
+                                                          CalculatedValueContainerFactory calculatedValueContainerFactory) {
+        return new DefaultProjectLocalComponentProvider(projectStateRegistry, metaDataBuilder, moduleIdentifierFactory, currentBuild.getBuildIdentifier(), calculatedValueContainerFactory);
     }
 
     LocalComponentRegistry createLocalComponentRegistry(List<LocalComponentProvider> providers) {
@@ -733,8 +734,8 @@ class DependencyManagementBuildScopeServices {
                                                               ExecutionEngine executionEngine,
                                                               FeaturePreviews featurePreviews,
                                                               FileCollectionFactory fileCollectionFactory,
-                                                              ClasspathFingerprinter fingerprinter) {
-        return new DefaultDependenciesAccessors(registry, workspace, factory, featurePreviews, executionEngine, fileCollectionFactory, fingerprinter);
+                                                              InputFingerprinter inputFingerprinter) {
+        return new DefaultDependenciesAccessors(registry, workspace, factory, featurePreviews, executionEngine, fileCollectionFactory, inputFingerprinter);
     }
 
 
@@ -744,32 +745,31 @@ class DependencyManagementBuildScopeServices {
      * Currently used for running artifact transformations in buildscript blocks.
      */
     ExecutionEngine createExecutionEngine(
-            BuildOperationExecutor buildOperationExecutor,
-            CurrentBuildOperationRef currentBuildOperationRef,
-            ClassLoaderHierarchyHasher classLoaderHierarchyHasher,
-            Deleter deleter,
-            ExecutionStateChangeDetector changeDetector,
-            InputFingerprinter inputFingerprinter,
-            ListenerManager listenerManager,
-            OutputSnapshotter outputSnapshotter,
-            OverlappingOutputDetector overlappingOutputDetector,
-            TimeoutHandler timeoutHandler,
-            ValidateStep.ValidationWarningRecorder validationWarningRecorder,
-            VirtualFileSystem virtualFileSystem,
-            DocumentationRegistry documentationRegistry
+        BuildOperationExecutor buildOperationExecutor,
+        CurrentBuildOperationRef currentBuildOperationRef,
+        ClassLoaderHierarchyHasher classLoaderHierarchyHasher,
+        Deleter deleter,
+        ExecutionStateChangeDetector changeDetector,
+        InputFingerprinter inputFingerprinter,
+        ListenerManager listenerManager,
+        OutputSnapshotter outputSnapshotter,
+        OverlappingOutputDetector overlappingOutputDetector,
+        TimeoutHandler timeoutHandler,
+        ValidateStep.ValidationWarningRecorder validationWarningRecorder,
+        VirtualFileSystem virtualFileSystem,
+        DocumentationRegistry documentationRegistry
     ) {
         OutputChangeListener outputChangeListener = listenerManager.getBroadcaster(OutputChangeListener.class);
         // TODO: Figure out how to get rid of origin scope id in snapshot outputs step
         UniqueId fixedUniqueId = UniqueId.from("dhwwyv4tqrd43cbxmdsf24wquu");
         // @formatter:off
-        return new DefaultExecutionEngine(
-            documentationRegistry,
-            new IdentifyStep<>(inputFingerprinter,
+        return new DefaultExecutionEngine(documentationRegistry,
+            new IdentifyStep<>(
             new IdentityCacheStep<>(
             new AssignWorkspaceStep<>(
             new LoadExecutionStateStep<>(
+            new CaptureStateBeforeExecutionStep(buildOperationExecutor, classLoaderHierarchyHasher, outputSnapshotter, overlappingOutputDetector,
             new ValidateStep<>(virtualFileSystem, validationWarningRecorder,
-            new CaptureStateBeforeExecutionStep(buildOperationExecutor, classLoaderHierarchyHasher, inputFingerprinter, outputSnapshotter, overlappingOutputDetector,
             new NoOpCachingStateStep(
             new ResolveChangesStep<>(changeDetector,
             new SkipUpToDateStep<>(
@@ -786,7 +786,7 @@ class DependencyManagementBuildScopeServices {
     }
 
 
-    private static class NoOpCachingStateStep implements Step<BeforeExecutionContext, CachingResult> {
+    private static class NoOpCachingStateStep implements Step<ValidationFinishedContext, CachingResult> {
         private final Step<? super CachingContext, ? extends UpToDateResult> delegate;
 
         public NoOpCachingStateStep(Step<? super CachingContext, ? extends UpToDateResult> delegate) {
@@ -794,7 +794,7 @@ class DependencyManagementBuildScopeServices {
         }
 
         @Override
-        public CachingResult execute(UnitOfWork work, BeforeExecutionContext context) {
+        public CachingResult execute(UnitOfWork work, ValidationFinishedContext context) {
             UpToDateResult result = delegate.execute(work, new CachingContext() {
                 @Override
                 public CachingState getCachingState() {

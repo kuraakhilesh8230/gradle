@@ -34,10 +34,9 @@ import org.gradle.api.internal.file.FileCollectionFactory;
 import org.gradle.api.internal.initialization.ClassLoaderScope;
 import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.internal.project.ProjectRegistry;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.initialization.DependenciesAccessors;
 import org.gradle.internal.Cast;
 import org.gradle.internal.classpath.ClassPath;
@@ -45,10 +44,14 @@ import org.gradle.internal.classpath.DefaultClassPath;
 import org.gradle.internal.execution.ExecutionEngine;
 import org.gradle.internal.execution.ExecutionResult;
 import org.gradle.internal.execution.UnitOfWork;
+import org.gradle.internal.execution.fingerprint.InputFingerprinter;
+import org.gradle.internal.execution.fingerprint.InputFingerprinter.FileValueSupplier;
+import org.gradle.internal.execution.fingerprint.InputFingerprinter.InputPropertyType;
+import org.gradle.internal.execution.fingerprint.InputFingerprinter.InputVisitor;
 import org.gradle.internal.execution.workspace.WorkspaceProvider;
 import org.gradle.internal.file.TreeType;
 import org.gradle.internal.fingerprint.CurrentFileCollectionFingerprint;
-import org.gradle.internal.fingerprint.classpath.ClasspathFingerprinter;
+import org.gradle.internal.fingerprint.DirectorySensitivity;
 import org.gradle.internal.hash.Hasher;
 import org.gradle.internal.hash.Hashing;
 import org.gradle.internal.logging.text.TreeFormatter;
@@ -56,7 +59,7 @@ import org.gradle.internal.management.DependencyResolutionManagementInternal;
 import org.gradle.internal.management.VersionCatalogBuilderInternal;
 import org.gradle.internal.service.ServiceRegistry;
 import org.gradle.internal.snapshot.ValueSnapshot;
-import org.gradle.util.IncubationLogger;
+import org.gradle.util.internal.IncubationLogger;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -72,8 +75,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class DefaultDependenciesAccessors implements DependenciesAccessors {
-    private final static Logger LOGGER = Logging.getLogger(DefaultDependenciesAccessors.class);
-
     private final static String SUPPORTED_PROJECT_NAMES = "[a-zA-Z]([A-Za-z0-9\\-_])*";
     private final static Pattern SUPPORTED_PATTERN = Pattern.compile(SUPPORTED_PROJECT_NAMES);
     private final static String ACCESSORS_PACKAGE = "org.gradle.accessors.dm";
@@ -86,7 +87,7 @@ public class DefaultDependenciesAccessors implements DependenciesAccessors {
     private final FeaturePreviews featurePreviews;
     private final ExecutionEngine engine;
     private final FileCollectionFactory fileCollectionFactory;
-    private final ClasspathFingerprinter fingerprinter;
+    private final InputFingerprinter inputFingerprinter;
     private final List<DefaultVersionCatalog> models = Lists.newArrayList();
     private final Map<String, Class<? extends ExternalModuleDependencyFactory>> factories = Maps.newHashMap();
 
@@ -101,14 +102,14 @@ public class DefaultDependenciesAccessors implements DependenciesAccessors {
                                         FeaturePreviews featurePreview,
                                         ExecutionEngine engine,
                                         FileCollectionFactory fileCollectionFactory,
-                                        ClasspathFingerprinter fingerprinter) {
+                                        InputFingerprinter inputFingerprinter) {
         this.classPath = registry.getClassPath("DEPENDENCIES-EXTENSION-COMPILER");
         this.workspace = workspace;
         this.projectDependencyFactory = projectDependencyFactory;
         this.featurePreviews = featurePreview;
         this.engine = engine;
         this.fileCollectionFactory = fileCollectionFactory;
-        this.fingerprinter = fingerprinter;
+        this.inputFingerprinter = inputFingerprinter;
     }
 
     @Override
@@ -275,6 +276,11 @@ public class DefaultDependenciesAccessors implements DependenciesAccessors {
             return workspace;
         }
 
+        @Override
+        public InputFingerprinter getInputFingerprinter() {
+            return inputFingerprinter;
+        }
+
         protected abstract List<ClassSource> getClassSources();
 
         @Override
@@ -335,12 +341,17 @@ public class DefaultDependenciesAccessors implements DependenciesAccessors {
         }
 
         @Override
-        public void visitInputs(InputVisitor visitor) {
-            visitor.visitInputProperty(IN_DEPENDENCY_ALIASES, IdentityKind.IDENTITY, model::getDependencyAliases);
-            visitor.visitInputProperty(IN_BUNDLES, IdentityKind.IDENTITY, model::getBundleAliases);
-            visitor.visitInputProperty(IN_VERSIONS, IdentityKind.IDENTITY, model::getVersionAliases);
-            visitor.visitInputProperty(IN_MODEL_NAME, IdentityKind.IDENTITY, model::getName);
-            visitor.visitInputFileProperty(IN_CLASSPATH, InputPropertyType.NON_INCREMENTAL, IdentityKind.IDENTITY, classPath, () -> fingerprinter.fingerprint(fileCollectionFactory.fixed(classPath.getAsFiles())));
+        public void visitIdentityInputs(InputVisitor visitor) {
+            visitor.visitInputProperty(IN_DEPENDENCY_ALIASES, model::getDependencyAliases);
+            visitor.visitInputProperty(IN_BUNDLES, model::getBundleAliases);
+            visitor.visitInputProperty(IN_VERSIONS, model::getVersionAliases);
+            visitor.visitInputProperty(IN_MODEL_NAME, model::getName);
+            visitor.visitInputFileProperty(IN_CLASSPATH, InputPropertyType.NON_INCREMENTAL,
+                new FileValueSupplier(
+                    classPath,
+                    ClasspathNormalizer.class,
+                    DirectorySensitivity.IGNORE_DIRECTORIES,
+                    () -> fileCollectionFactory.fixed(classPath.getAsFiles())));
         }
 
         @Override
@@ -368,8 +379,8 @@ public class DefaultDependenciesAccessors implements DependenciesAccessors {
         }
 
         @Override
-        public void visitInputs(InputVisitor visitor) {
-            visitor.visitInputProperty(IN_PROJECTS, IdentityKind.IDENTITY, this::buildProjectTree);
+        public void visitIdentityInputs(InputVisitor visitor) {
+            visitor.visitInputProperty(IN_PROJECTS, this::buildProjectTree);
         }
 
         private String buildProjectTree() {

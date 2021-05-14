@@ -32,12 +32,12 @@ import org.gradle.api.reporting.ReportingExtension;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.internal.deprecation.DeprecatableConfiguration;
 import org.gradle.internal.jacoco.JacocoAgentJar;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import org.gradle.testing.jacoco.tasks.JacocoBase;
 import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification;
-import org.gradle.testing.jacoco.tasks.JacocoMerge;
 import org.gradle.testing.jacoco.tasks.JacocoReport;
 
 import javax.inject.Inject;
@@ -97,12 +97,18 @@ public class JacocoPlugin implements Plugin<Project> {
         agentConf.setVisible(false);
         agentConf.setTransitive(true);
         agentConf.setDescription("The Jacoco agent to use to get coverage data.");
+        deprecateForConsumption(agentConf);
         Configuration antConf = project.getConfigurations().create(ANT_CONFIGURATION_NAME);
         antConf.setVisible(false);
         antConf.setTransitive(true);
         antConf.setDescription("The Jacoco ant tasks to use to get execute Gradle tasks.");
+        deprecateForConsumption(antConf);
     }
 
+    private static void deprecateForConsumption(Configuration configuration) {
+        ((DeprecatableConfiguration) configuration).deprecateForConsumption(deprecation -> deprecation.willBecomeAnErrorInGradle8()
+            .withUpgradeGuideSection(7, "plugin_configuration_consumption"));
+    }
 
     /**
      * Configures the agent dependencies using the 'jacocoAnt' configuration. Uses the version declared in 'toolVersion' of the Jacoco extension if no dependencies are explicitly declared.
@@ -136,9 +142,10 @@ public class JacocoPlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(extension::applyTo);
     }
 
+    @SuppressWarnings("deprecation")
     private void configureDefaultOutputPathForJacocoMerge() {
         Provider<File> buildDirectory = project.getLayout().getBuildDirectory().getAsFile();
-        project.getTasks().withType(JacocoMerge.class).configureEach(task ->
+        project.getTasks().withType(org.gradle.testing.jacoco.tasks.JacocoMerge.class).configureEach(task ->
             task.setDestinationFile(buildDirectory.map(buildDir -> new File(buildDir, "jacoco/" + task.getName() + ".exec")))
         );
     }
@@ -149,7 +156,7 @@ public class JacocoPlugin implements Plugin<Project> {
 
     private void configureJacocoReportDefaults(final JacocoPluginExtension extension, final JacocoReport reportTask) {
         reportTask.getReports().all(action(report ->
-            report.setEnabled(report.getName().equals("html"))
+            report.getRequired().set(report.getName().equals("html"))
         ));
         DirectoryProperty reportsDir = extension.getReportsDirectory();
         reportTask.getReports().all(action(report -> {

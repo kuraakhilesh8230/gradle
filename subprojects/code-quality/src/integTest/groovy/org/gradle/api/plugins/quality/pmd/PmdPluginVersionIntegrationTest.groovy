@@ -15,7 +15,7 @@
  */
 package org.gradle.api.plugins.quality.pmd
 
-import org.gradle.util.VersionNumber
+import org.gradle.util.internal.VersionNumber
 import org.hamcrest.Matcher
 import spock.lang.Issue
 
@@ -162,8 +162,8 @@ class PmdPluginVersionIntegrationTest extends AbstractPmdPluginVersionIntegratio
         buildFile << """
             pmdMain {
                 reports {
-                    xml.enabled false
-                    html.destination file("htmlReport.html")
+                    xml.required = false
+                    html.outputLocation = file("htmlReport.html")
                 }
             }
         """
@@ -264,8 +264,8 @@ class PmdPluginVersionIntegrationTest extends AbstractPmdPluginVersionIntegratio
             }
             tasks.withType(Pmd) {
                 reports {
-                    html.enabled false
-                    xml.enabled false
+                    html.required = false
+                    xml.required = false
                 }
             }
         """

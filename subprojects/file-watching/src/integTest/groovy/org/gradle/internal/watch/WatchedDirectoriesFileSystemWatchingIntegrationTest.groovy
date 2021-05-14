@@ -24,7 +24,7 @@ import org.gradle.internal.os.OperatingSystem
 import org.gradle.internal.service.scopes.VirtualFileSystemServices
 import org.gradle.test.fixtures.server.http.MavenHttpRepository
 import org.gradle.test.fixtures.server.http.RepositoryHttpServer
-import org.gradle.util.TextUtil
+import org.gradle.util.internal.TextUtil
 import org.junit.Rule
 import spock.lang.Issue
 import spock.lang.Unroll
@@ -176,6 +176,7 @@ class WatchedDirectoriesFileSystemWatchingIntegrationTest extends AbstractFileSy
 
         when:
         inDirectory(settingsDir)
+        executer.expectDocumentedDeprecationWarning("Subproject ':sub' has location '${file("sub").absolutePath}' which is outside of the project root. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_7.html#deprecated_flat_project_structure")
         withWatchFs().run("thing")
         then:
         executed ":sub:thing"

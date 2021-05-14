@@ -43,9 +43,9 @@ tasks.jacocoTestReport {
 // tag::report-configuration[]
 tasks.jacocoTestReport {
     reports {
-        xml.isEnabled = false
-        csv.isEnabled = false
-        html.destination = layout.buildDirectory.dir("jacocoHtml").get().asFile
+        xml.required.set(false)
+        csv.required.set(false)
+        html.outputLocation.set(layout.buildDirectory.dir("jacocoHtml"))
     }
 }
 // end::report-configuration[]

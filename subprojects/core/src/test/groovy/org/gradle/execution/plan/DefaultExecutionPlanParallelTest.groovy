@@ -38,7 +38,7 @@ import org.gradle.testfixtures.internal.NativeServicesTestFixture
 import org.gradle.util.Path
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
-import org.gradle.util.ToBeImplemented
+import org.gradle.util.internal.ToBeImplemented
 import spock.lang.Issue
 import spock.lang.Unroll
 
@@ -931,7 +931,7 @@ class DefaultExecutionPlanParallelTest extends AbstractExecutionPlanSpec {
         }
         if (nextTaskNode?.task instanceof Async) {
             def project = (ProjectInternal) nextTaskNode.task.project
-            project.mutationState.accessLock.unlock()
+            project.owner.accessLock.unlock()
         }
         return nextTaskNode
     }

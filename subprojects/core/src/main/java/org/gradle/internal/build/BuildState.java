@@ -20,8 +20,8 @@ import org.gradle.api.artifacts.component.BuildIdentifier;
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.internal.GradleInternal;
 import org.gradle.api.internal.SettingsInternal;
+import org.gradle.api.internal.project.ProjectState;
 import org.gradle.initialization.IncludedBuildSpec;
-import org.gradle.initialization.NestedBuildFactory;
 import org.gradle.util.Path;
 
 import java.io.File;
@@ -57,11 +57,6 @@ public interface BuildState {
     SettingsInternal getLoadedSettings() throws IllegalStateException;
 
     /**
-     * Returns the factory to use to create children of this build.
-     */
-    NestedBuildFactory getNestedBuildFactory();
-
-    /**
      * Note: may change value over the lifetime of this build, as this is often a function of the name of the root project in the build and this is not known until the settings have been configured. A temporary value will be returned when child builds need to create projects for some reason.
      */
     Path getCurrentPrefixForProjectsInChildBuilds();
@@ -77,6 +72,11 @@ public interface BuildState {
     ProjectComponentIdentifier getIdentifierForProject(Path projectPath) throws IllegalStateException;
 
     /**
+     * Locates a project of this build.
+     */
+    ProjectState getProject(Path projectPath);
+
+    /**
      * Asserts that the given build can be included by this build.
      */
     void assertCanAdd(IncludedBuildSpec includedBuildSpec);
@@ -87,4 +87,9 @@ public interface BuildState {
     File getBuildRootDir();
 
     GradleInternal getBuild();
+
+    /**
+     * Returns the current state of the mutable model of this build.
+     */
+    GradleInternal getMutableModel();
 }

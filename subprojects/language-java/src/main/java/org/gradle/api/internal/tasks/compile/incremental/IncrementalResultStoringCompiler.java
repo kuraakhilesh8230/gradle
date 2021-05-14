@@ -19,24 +19,30 @@ package org.gradle.api.internal.tasks.compile.incremental;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import org.gradle.api.internal.cache.StringInterner;
+import org.gradle.api.GradleException;
+import org.gradle.api.internal.tasks.compile.ApiCompilerResult;
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec;
-import org.gradle.api.internal.tasks.compile.JdkJavaCompilerResult;
-import org.gradle.api.internal.tasks.compile.incremental.classpath.ClasspathSnapshotData;
-import org.gradle.api.internal.tasks.compile.incremental.classpath.ClasspathSnapshotProvider;
+import org.gradle.api.internal.tasks.compile.incremental.compilerapi.CompilerApiData;
+import org.gradle.api.internal.tasks.compile.incremental.compilerapi.constants.ConstantToDependentsMapping;
+import org.gradle.api.internal.tasks.compile.incremental.compilerapi.constants.ConstantToDependentsMappingMerger;
+import org.gradle.api.internal.tasks.compile.incremental.deps.ClassSetAnalysisData;
 import org.gradle.api.internal.tasks.compile.incremental.processing.AnnotationProcessingData;
 import org.gradle.api.internal.tasks.compile.incremental.processing.AnnotationProcessingResult;
-import org.gradle.api.internal.tasks.compile.incremental.processing.GeneratedResource;
+import org.gradle.api.internal.tasks.compile.incremental.recomp.CurrentCompilationAccess;
 import org.gradle.api.internal.tasks.compile.incremental.recomp.IncrementalCompilationResult;
+import org.gradle.api.internal.tasks.compile.incremental.recomp.PreviousCompilationAccess;
 import org.gradle.api.internal.tasks.compile.incremental.recomp.PreviousCompilationData;
+import org.gradle.api.internal.tasks.compile.incremental.recomp.RecompilationSpec;
 import org.gradle.api.internal.tasks.compile.processing.AnnotationProcessorDeclaration;
 import org.gradle.api.tasks.WorkResult;
-import org.gradle.cache.internal.Stash;
 import org.gradle.language.base.internal.compile.Compiler;
 
+import java.io.File;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -45,15 +51,13 @@ import java.util.Set;
 class IncrementalResultStoringCompiler<T extends JavaCompileSpec> implements Compiler<T> {
 
     private final Compiler<T> delegate;
-    private final ClasspathSnapshotProvider classpathSnapshotProvider;
-    private final Stash<PreviousCompilationData> stash;
-    private final StringInterner interner;
+    private final CurrentCompilationAccess classpathSnapshotter;
+    private final PreviousCompilationAccess previousCompilationAccess;
 
-    IncrementalResultStoringCompiler(Compiler<T> delegate, ClasspathSnapshotProvider classpathSnapshotProvider, Stash<PreviousCompilationData> stash, StringInterner interner) {
+    IncrementalResultStoringCompiler(Compiler<T> delegate, CurrentCompilationAccess classpathSnapshotter, PreviousCompilationAccess previousCompilationAccess) {
         this.delegate = delegate;
-        this.classpathSnapshotProvider = classpathSnapshotProvider;
-        this.stash = stash;
-        this.interner = interner;
+        this.classpathSnapshotter = classpathSnapshotter;
+        this.previousCompilationAccess = previousCompilationAccess;
     }
 
     @Override
@@ -67,49 +71,85 @@ class IncrementalResultStoringCompiler<T extends JavaCompileSpec> implements Com
     }
 
     private void storeResult(JavaCompileSpec spec, WorkResult result) {
-        ClasspathSnapshotData classpathSnapshot = classpathSnapshotProvider.getClasspathSnapshot(Iterables.concat(spec.getCompileClasspath(), spec.getModulePath())).getData();
+        ClassSetAnalysisData outputSnapshot = classpathSnapshotter.analyzeOutputFolder(spec.getDestinationDir());
+        ClassSetAnalysisData classpathSnapshot = classpathSnapshotter.getClasspathSnapshot(Iterables.concat(spec.getCompileClasspath(), spec.getModulePath()));
         AnnotationProcessingData annotationProcessingData = getAnnotationProcessingResult(spec, result);
-        PreviousCompilationData data = new PreviousCompilationData(spec.getDestinationDir(), annotationProcessingData, classpathSnapshot, spec.getAnnotationProcessorPath());
-        stash.put(data);
+        CompilerApiData compilerApiData = getCompilerApiData(spec, result);
+        ClassSetAnalysisData minimizedClasspathSnapshot = classpathSnapshot.reduceToTypesAffecting(outputSnapshot, compilerApiData);
+        PreviousCompilationData data = new PreviousCompilationData(outputSnapshot, annotationProcessingData, minimizedClasspathSnapshot, compilerApiData);
+        File previousCompilationDataFile = Objects.requireNonNull(spec.getCompileOptions().getPreviousCompilationDataFile());
+        previousCompilationAccess.writePreviousCompilationData(data, previousCompilationDataFile);
     }
 
     private AnnotationProcessingData getAnnotationProcessingResult(JavaCompileSpec spec, WorkResult result) {
         Set<AnnotationProcessorDeclaration> processors = spec.getEffectiveAnnotationProcessors();
-        if (processors == null || processors.isEmpty()) {
+        if (processors.isEmpty()) {
             return new AnnotationProcessingData();
         }
         if (result instanceof IncrementalCompilationResult) {
             result = ((IncrementalCompilationResult) result).getCompilerResult();
         }
-        if (result instanceof JdkJavaCompilerResult) {
-            AnnotationProcessingResult processingResult = ((JdkJavaCompilerResult) result).getAnnotationProcessingResult();
+        if (result instanceof ApiCompilerResult) {
+            AnnotationProcessingResult processingResult = ((ApiCompilerResult) result).getAnnotationProcessingResult();
             return convertProcessingResult(processingResult);
         }
-        return new AnnotationProcessingData(ImmutableMap.<String, Set<String>>of(), ImmutableSet.<String>of(), ImmutableSet.<String>of(), ImmutableMap.<String, Set<GeneratedResource>>of(), ImmutableSet.<GeneratedResource>of(), "the chosen compiler did not support incremental annotation processing");
+        return new AnnotationProcessingData(ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of(), ImmutableMap.of(), ImmutableSet.of(), "the chosen compiler did not support incremental annotation processing");
     }
 
     private AnnotationProcessingData convertProcessingResult(AnnotationProcessingResult processingResult) {
-        Map<String, Set<String>> generatedTypesByOrigin = processingResult.getGeneratedTypesWithIsolatedOrigin();
-        Map<String, Set<GeneratedResource>> generatedResourcesByOrigin = processingResult.getGeneratedResourcesWithIsolatedOrigin();
-        Set<String> aggregatedTypes = processingResult.getAggregatedTypes();
-        Set<String> aggregatingTypes = processingResult.getGeneratedAggregatingTypes();
-        Set<GeneratedResource> aggregatingResources = processingResult.getGeneratedAggregatingResources();
-        return new AnnotationProcessingData(intern(generatedTypesByOrigin), intern(aggregatedTypes), intern(aggregatingTypes), generatedResourcesByOrigin, aggregatingResources, processingResult.getFullRebuildCause());
+        return new AnnotationProcessingData(
+            processingResult.getGeneratedTypesWithIsolatedOrigin(),
+            processingResult.getAggregatedTypes(),
+            processingResult.getGeneratedAggregatingTypes(),
+            processingResult.getGeneratedResourcesWithIsolatedOrigin(),
+            processingResult.getGeneratedAggregatingResources(),
+            processingResult.getFullRebuildCause()
+        );
     }
 
-    private Set<String> intern(Set<String> types) {
-        Set<String> result = Sets.newHashSet();
-        for (String string : types) {
-            result.add(interner.intern(string));
+    private CompilerApiData getCompilerApiData(JavaCompileSpec spec, WorkResult result) {
+        if (spec.getCompileOptions().supportsCompilerApi()) {
+            CompilerApiData previousCompilerApiData = null;
+            RecompilationSpec recompilationSpec = null;
+            if (result instanceof IncrementalCompilationResult) {
+                previousCompilerApiData = ((IncrementalCompilationResult) result).getPreviousCompilationData().getCompilerApiData();
+                recompilationSpec = ((IncrementalCompilationResult) result).getRecompilationSpec();
+                result = ((IncrementalCompilationResult) result).getCompilerResult();
+            }
+
+            Set<String> changedClasses = recompilationSpec == null ? Collections.emptySet() : recompilationSpec.getClassesToCompile();
+            ConstantToDependentsMapping previousConstantToDependentsMapping = previousCompilerApiData == null ? null : previousCompilerApiData.getConstantToClassMapping();
+            Map<String, Set<String>> previousSourceClassesMapping = previousCompilerApiData == null ? null : previousCompilerApiData.getSourceToClassMapping();
+            if (result instanceof ApiCompilerResult) {
+                ApiCompilerResult jdkJavaResult = (ApiCompilerResult) result;
+                ConstantToDependentsMapping newConstantsToDependentsMapping = jdkJavaResult.getConstantsAnalysisResult()
+                    .getConstantToDependentsMapping()
+                    .orElseThrow(() -> new GradleException("Constants to dependents mapping not present, but it should be"));
+                Map<String, Set<String>> newSourceClassesMapping = jdkJavaResult.getSourceClassesMapping();
+                Map<String, Set<String>> mergedSourceClassesMapping;
+                if (previousSourceClassesMapping == null) {
+                    mergedSourceClassesMapping = newSourceClassesMapping;
+                } else {
+                    mergedSourceClassesMapping = mergeSourceClassesMappings(previousSourceClassesMapping, newSourceClassesMapping, changedClasses);
+                }
+                ConstantToDependentsMapping mergedConstants = new ConstantToDependentsMappingMerger().merge(newConstantsToDependentsMapping, previousConstantToDependentsMapping, changedClasses);
+                if (spec.getCompileOptions().supportsConstantAnalysis()) {
+                    return CompilerApiData.withConstantsMapping(mergedSourceClassesMapping, mergedConstants);
+                } else {
+                    return CompilerApiData.withoutConstantsMapping(mergedSourceClassesMapping);
+                }
+            }
         }
-        return result;
+        return CompilerApiData.unavailable();
     }
 
-    private Map<String, Set<String>> intern(Map<String, Set<String>> types) {
-        Map<String, Set<String>> result = Maps.newHashMap();
-        for (Map.Entry<String, Set<String>> entry : types.entrySet()) {
-            result.put(interner.intern(entry.getKey()), intern(entry.getValue()));
+    private Map<String, Set<String>> mergeSourceClassesMappings(Map<String, Set<String>> previousSourceClassesMapping, Map<String, Set<String>> newSourceClassesMapping, Set<String> changedClasses) {
+        Map<String, Set<String>> merged = new HashMap<>(previousSourceClassesMapping);
+        merged.keySet().removeAll(changedClasses);
+        for (Map.Entry<String, Set<String>> entry : newSourceClassesMapping.entrySet()) {
+            merged.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).addAll(entry.getValue());
         }
-        return result;
+        return merged;
     }
+
 }

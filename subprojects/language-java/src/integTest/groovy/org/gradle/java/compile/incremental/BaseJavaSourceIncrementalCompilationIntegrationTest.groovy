@@ -16,9 +16,8 @@
 
 package org.gradle.java.compile.incremental
 
-import groovy.transform.NotYetImplemented
 import org.gradle.integtests.fixtures.CompiledLanguage
-import org.gradle.util.ToBeImplemented
+import org.gradle.util.internal.ToBeImplemented
 import spock.lang.Issue
 import spock.lang.Unroll
 
@@ -88,32 +87,6 @@ abstract class BaseJavaSourceIncrementalCompilationIntegrationTest extends Abstr
         generatedHeaderFile.assertDoesNotExist()
         generatedInnerClassHeaderFile.assertDoesNotExist()
         file("build/generated/sources/headers/java/main/Bar.h").assertExists()
-    }
-
-    def "changed class with used non-private constant incurs full rebuild"() {
-        source "class A { int foo() { return 1; } }", "class B { final static int x = 1;}"
-        outputs.snapshot { run language.compileTaskName }
-
-        when:
-        source "class B { /* change */ }"
-        run language.compileTaskName
-
-        then:
-        outputs.recompiledClasses 'B', 'A'
-    }
-
-    @NotYetImplemented
-    //  Can re-enable with compiler plugins. See gradle/gradle#1474
-    def "changing an unused non-private constant incurs partial rebuild"() {
-        source "class A { int foo() { return 2; } }", "class B { final static int x = 1;}"
-        outputs.snapshot { run language.compileTaskName }
-
-        when:
-        source "class B { /* change */ }"
-        run language.compileTaskName
-
-        then:
-        outputs.recompiledClasses 'B'
     }
 
     def "reports source type that does not support detection of source root"() {

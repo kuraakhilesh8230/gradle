@@ -17,13 +17,13 @@
 package org.gradle.internal.execution.steps
 
 import com.google.common.collect.ImmutableSortedMap
-import org.gradle.internal.execution.InputFingerprinter
 import org.gradle.internal.execution.OutputSnapshotter
 import org.gradle.internal.execution.UnitOfWork
+import org.gradle.internal.execution.fingerprint.InputFingerprinter
+import org.gradle.internal.execution.fingerprint.impl.DefaultInputFingerprinter
 import org.gradle.internal.execution.history.AfterPreviousExecutionState
 import org.gradle.internal.execution.history.ExecutionHistoryStore
 import org.gradle.internal.execution.history.OverlappingOutputDetector
-import org.gradle.internal.execution.impl.DefaultInputFingerprinter
 import org.gradle.internal.fingerprint.CurrentFileCollectionFingerprint
 import org.gradle.internal.hash.ClassLoaderHierarchyHasher
 import org.gradle.internal.hash.HashCode
@@ -34,7 +34,7 @@ import org.gradle.internal.snapshot.impl.ImplementationSnapshot
 import static org.gradle.internal.execution.UnitOfWork.OverlappingOutputHandling.DETECT_OVERLAPS
 import static org.gradle.internal.execution.UnitOfWork.OverlappingOutputHandling.IGNORE_OVERLAPS
 
-class CaptureStateBeforeExecutionStepTest extends StepSpec<ValidationContext> {
+class CaptureStateBeforeExecutionStepTest extends StepSpec<BeforeExecutionContext> {
 
     def classloaderHierarchyHasher = Mock(ClassLoaderHierarchyHasher)
     def outputSnapshotter = Mock(OutputSnapshotter)
@@ -43,11 +43,11 @@ class CaptureStateBeforeExecutionStepTest extends StepSpec<ValidationContext> {
     def overlappingOutputDetector = Mock(OverlappingOutputDetector)
     def executionHistoryStore = Mock(ExecutionHistoryStore)
 
-    def step = new CaptureStateBeforeExecutionStep(buildOperationExecutor, classloaderHierarchyHasher, inputFingerprinter, outputSnapshotter, overlappingOutputDetector, delegate)
+    def step = new CaptureStateBeforeExecutionStep(buildOperationExecutor, classloaderHierarchyHasher, outputSnapshotter, overlappingOutputDetector, delegate)
 
     @Override
-    protected ValidationContext createContext() {
-        Stub(ValidationContext) {
+    protected ValidationFinishedContext createContext() {
+        Stub(ValidationFinishedContext) {
             getInputProperties() >> ImmutableSortedMap.of()
             getInputFileProperties() >> ImmutableSortedMap.of()
         }
@@ -55,6 +55,7 @@ class CaptureStateBeforeExecutionStepTest extends StepSpec<ValidationContext> {
 
     def setup() {
         _ * work.history >> Optional.of(executionHistoryStore)
+        _ * work.inputFingerprinter >> inputFingerprinter
     }
 
     def "no state is captured when task history is not maintained"() {
@@ -110,7 +111,6 @@ class CaptureStateBeforeExecutionStepTest extends StepSpec<ValidationContext> {
         _ * context.inputProperties >> ImmutableSortedMap.of("known", knownSnapshot)
         _ * context.inputFileProperties >> ImmutableSortedMap.of("known-file", knownFileFingerprint)
         1 * inputFingerprinter.fingerprintInputProperties(
-            work,
             ImmutableSortedMap.of(),
             ImmutableSortedMap.of("known", knownSnapshot),
             ImmutableSortedMap.of("known-file", knownFileFingerprint),
@@ -183,7 +183,7 @@ class CaptureStateBeforeExecutionStepTest extends StepSpec<ValidationContext> {
         _ * work.visitImplementations(_ as UnitOfWork.ImplementationVisitor) >> { UnitOfWork.ImplementationVisitor visitor ->
             visitor.visitImplementation(implementationSnapshot)
         }
-        _ * inputFingerprinter.fingerprintInputProperties(work, _, _, _, _) >> new DefaultInputFingerprinter.InputFingerprints(ImmutableSortedMap.of(), ImmutableSortedMap.of())
+        _ * inputFingerprinter.fingerprintInputProperties(_, _, _, _) >> new DefaultInputFingerprinter.InputFingerprints(ImmutableSortedMap.of(), ImmutableSortedMap.of())
         _ * work.overlappingOutputHandling >> IGNORE_OVERLAPS
         _ * outputSnapshotter.snapshotOutputs(work, _) >> ImmutableSortedMap.of()
         _ * context.history >> Optional.of(executionHistoryStore)

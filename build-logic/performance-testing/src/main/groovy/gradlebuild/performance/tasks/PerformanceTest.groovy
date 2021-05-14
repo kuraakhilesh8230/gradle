@@ -271,7 +271,7 @@ abstract class PerformanceTest extends DistributionTest {
     }
 
     void generateResultsJson() {
-        Collection<File> xmls = reports.junitXml.destination.listFiles().findAll { it.path.endsWith(".xml") }
+        Collection<File> xmls = reports.junitXml.outputLocation.get().asFile.listFiles().findAll { it.path.endsWith(".xml") }
         List<ScenarioBuildResultData> resultData = xmls
             .collect { JUnitMarshalling.unmarshalTestSuite(new FileInputStream(it)) }
             .collect { extractResultFromTestSuite(it, getTestProjectName().get()) }
@@ -320,8 +320,6 @@ abstract class PerformanceTest extends DistributionTest {
             addSystemPropertyIfExist(result, "org.gradle.performance.debugArtifactsDirectory", getDebugArtifactsDirectory())
 
             if (profiler.isPresent() && profiler.get() != "none") {
-                File artifactsDirectory = new File(getDebugArtifactsDirectory(), "flames")
-                addSystemPropertyIfExist(result, "org.gradle.performance.flameGraphTargetDir", artifactsDirectory.getAbsolutePath())
                 addSystemPropertyIfExist(result, "org.gradle.performance.profiler", profiler.get())
             }
         }

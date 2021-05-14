@@ -21,7 +21,6 @@ import com.google.common.collect.Lists;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.DebugOptions;
-import org.gradle.api.tasks.compile.ForkOptions;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -34,7 +33,7 @@ public class MinimalJavaCompileOptions implements Serializable {
     private String encoding;
     private String bootClasspath;
     private String extensionDirs;
-    private ForkOptions forkOptions;
+    private MinimalJavaCompilerDaemonForkOptions forkOptions;
     private DebugOptions debugOptions;
     private boolean debug;
     private boolean deprecation;
@@ -46,7 +45,9 @@ public class MinimalJavaCompileOptions implements Serializable {
     private File headerOutputDirectory;
     private String javaModuleVersion;
     private String javaModuleMainClass;
-    private File incrementalCompilationMappingFile;
+    private boolean supportsCompilerApi;
+    private boolean supportsConstantsAnalysis;
+    private File previousCompilationDataFile;
 
     public MinimalJavaCompileOptions(final CompileOptions compileOptions) {
         FileCollection sourcepath = compileOptions.getSourcepath();
@@ -55,7 +56,7 @@ public class MinimalJavaCompileOptions implements Serializable {
         this.encoding = compileOptions.getEncoding();
         this.bootClasspath = getAsPath(compileOptions.getBootstrapClasspath());
         this.extensionDirs = compileOptions.getExtensionDirs();
-        this.forkOptions = compileOptions.getForkOptions();
+        this.forkOptions = new MinimalJavaCompilerDaemonForkOptions(compileOptions.getForkOptions());
         this.debugOptions = compileOptions.getDebugOptions();
         this.debug = compileOptions.isDebug();
         this.deprecation = compileOptions.isDeprecation();
@@ -115,11 +116,11 @@ public class MinimalJavaCompileOptions implements Serializable {
         this.extensionDirs = extensionDirs;
     }
 
-    public ForkOptions getForkOptions() {
+    public MinimalJavaCompilerDaemonForkOptions getForkOptions() {
         return forkOptions;
     }
 
-    public void setForkOptions(ForkOptions forkOptions) {
+    public void setForkOptions(MinimalJavaCompilerDaemonForkOptions forkOptions) {
         this.forkOptions = forkOptions;
     }
 
@@ -179,11 +180,12 @@ public class MinimalJavaCompileOptions implements Serializable {
         this.warnings = warnings;
     }
 
+    @Nullable
     public File getAnnotationProcessorGeneratedSourcesDirectory() {
         return annotationProcessorGeneratedSourcesDirectory;
     }
 
-    public void setAnnotationProcessorGeneratedSourcesDirectory(File annotationProcessorGeneratedSourcesDirectory) {
+    public void setAnnotationProcessorGeneratedSourcesDirectory(@Nullable File annotationProcessorGeneratedSourcesDirectory) {
         this.annotationProcessorGeneratedSourcesDirectory = annotationProcessorGeneratedSourcesDirectory;
     }
 
@@ -215,11 +217,27 @@ public class MinimalJavaCompileOptions implements Serializable {
     }
 
     @Nullable
-    public File getIncrementalCompilationMappingFile() {
-        return incrementalCompilationMappingFile;
+    public File getPreviousCompilationDataFile() {
+        return previousCompilationDataFile;
     }
 
-    public void setIncrementalCompilationMappingFile(@Nullable File incrementalCompilationMappingFile) {
-        this.incrementalCompilationMappingFile = incrementalCompilationMappingFile;
+    public void setPreviousCompilationDataFile(@Nullable File previousCompilationDataFile) {
+        this.previousCompilationDataFile = previousCompilationDataFile;
+    }
+
+    public boolean supportsCompilerApi() {
+        return supportsCompilerApi;
+    }
+
+    public void setSupportsCompilerApi(boolean supportsCompilerApi) {
+        this.supportsCompilerApi = supportsCompilerApi;
+    }
+
+    public boolean supportsConstantAnalysis() {
+        return supportsConstantsAnalysis;
+    }
+
+    public void setSupportsConstantAnalysis(boolean supportsConstantsAnalysis) {
+        this.supportsConstantsAnalysis = supportsConstantsAnalysis;
     }
 }

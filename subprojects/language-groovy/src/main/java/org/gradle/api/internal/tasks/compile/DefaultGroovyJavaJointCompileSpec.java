@@ -16,24 +16,20 @@
 
 package org.gradle.api.internal.tasks.compile;
 
-import org.gradle.api.tasks.compile.GroovyCompileOptions;
-
-import javax.annotation.Nullable;
 import java.io.File;
 import java.util.List;
 
 public class DefaultGroovyJavaJointCompileSpec extends DefaultJavaCompileSpec implements GroovyJavaJointCompileSpec {
-    private GroovyCompileOptions compileOptions;
+    private MinimalGroovyCompileOptions groovyCompileOptions;
     private List<File> groovyClasspath;
-    private File compilationMappingFile;
 
     @Override
-    public GroovyCompileOptions getGroovyCompileOptions() {
-        return compileOptions;
+    public MinimalGroovyCompileOptions getGroovyCompileOptions() {
+        return groovyCompileOptions;
     }
 
-    public void setGroovyCompileOptions(GroovyCompileOptions compileOptions) {
-        this.compileOptions = compileOptions;
+    public void setGroovyCompileOptions(MinimalGroovyCompileOptions groovyCompileOptions) {
+        this.groovyCompileOptions = groovyCompileOptions;
     }
 
     @Override
@@ -47,13 +43,7 @@ public class DefaultGroovyJavaJointCompileSpec extends DefaultJavaCompileSpec im
     }
 
     @Override
-    @Nullable
-    public File getCompilationMappingFile() {
-        return compilationMappingFile;
-    }
-
-    @Override
-    public void setCompilationMappingFile(@Nullable File compilationMappingFile) {
-        this.compilationMappingFile = compilationMappingFile;
+    public boolean incrementalCompilationEnabled() {
+        return getCompileOptions().getPreviousCompilationDataFile() != null;
     }
 }

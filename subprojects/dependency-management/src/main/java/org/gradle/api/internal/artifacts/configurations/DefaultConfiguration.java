@@ -94,7 +94,6 @@ import org.gradle.api.specs.Spec;
 import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.TaskDependency;
 import org.gradle.configuration.internal.UserCodeApplicationContext;
-import org.gradle.initialization.ProjectAccessListener;
 import org.gradle.internal.Actions;
 import org.gradle.internal.Cast;
 import org.gradle.internal.Describables;
@@ -107,6 +106,7 @@ import org.gradle.internal.component.model.ComponentResolveMetadata;
 import org.gradle.internal.concurrent.GradleThread;
 import org.gradle.internal.deprecation.DeprecatableConfiguration;
 import org.gradle.internal.deprecation.DeprecationLogger;
+import org.gradle.internal.deprecation.DeprecationMessageBuilder;
 import org.gradle.internal.event.ListenerBroadcast;
 import org.gradle.internal.event.ListenerManager;
 import org.gradle.internal.lazy.Lazy;
@@ -121,10 +121,10 @@ import org.gradle.internal.operations.CallableBuildOperation;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.resolve.ModuleVersionNotFoundException;
 import org.gradle.internal.typeconversion.NotationParser;
-import org.gradle.util.CollectionUtils;
-import org.gradle.util.ConfigureUtil;
 import org.gradle.util.Path;
-import org.gradle.util.WrapUtil;
+import org.gradle.util.internal.CollectionUtils;
+import org.gradle.util.internal.ConfigureUtil;
+import org.gradle.util.internal.WrapUtil;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -137,6 +137,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -144,7 +145,7 @@ import static org.gradle.api.internal.artifacts.configurations.ConfigurationInte
 import static org.gradle.api.internal.artifacts.configurations.ConfigurationInternal.InternalState.BUILD_DEPENDENCIES_RESOLVED;
 import static org.gradle.api.internal.artifacts.configurations.ConfigurationInternal.InternalState.GRAPH_RESOLVED;
 import static org.gradle.api.internal.artifacts.configurations.ConfigurationInternal.InternalState.UNRESOLVED;
-import static org.gradle.util.ConfigureUtil.configure;
+import static org.gradle.util.internal.ConfigureUtil.configure;
 
 @SuppressWarnings("rawtypes")
 public class DefaultConfiguration extends AbstractFileCollection implements ConfigurationInternal, MutationValidator {
@@ -179,7 +180,6 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
     private final Instantiator instantiator;
     private final NotationParser<Object, ConfigurablePublishArtifact> artifactNotationParser;
     private final NotationParser<Object, Capability> capabilityNotationParser;
-    private final ProjectAccessListener projectAccessListener;
     private Factory<ResolutionStrategyInternal> resolutionStrategyFactory;
     private ResolutionStrategyInternal resolutionStrategy;
     private final FileCollectionFactory fileCollectionFactory;
@@ -228,7 +228,7 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
     private Action<? super ConfigurationInternal> beforeLocking;
 
     private List<String> declarationAlternatives;
-    private List<String> consumptionAlternatives;
+    private DeprecationMessageBuilder.WithDocumentation consumptionDeprecation;
     private List<String> resolutionAlternatives;
 
     private final CalculatedModelValue<ResolveState> currentResolveState;
@@ -244,7 +244,6 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
                                 ListenerManager listenerManager,
                                 DependencyMetaDataProvider metaDataProvider,
                                 Factory<ResolutionStrategyInternal> resolutionStrategyFactory,
-                                ProjectAccessListener projectAccessListener,
                                 FileCollectionFactory fileCollectionFactory,
                                 BuildOperationExecutor buildOperationExecutor,
                                 Instantiator instantiator,
@@ -270,7 +269,6 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
         this.listenerManager = listenerManager;
         this.metaDataProvider = metaDataProvider;
         this.resolutionStrategyFactory = resolutionStrategyFactory;
-        this.projectAccessListener = projectAccessListener;
         this.fileCollectionFactory = fileCollectionFactory;
         this.dependencyResolutionListeners = listenerManager.createAnonymousBroadcaster(DependencyResolutionListener.class);
         this.buildOperationExecutor = buildOperationExecutor;
@@ -876,7 +874,7 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
     @Override
     public TaskDependency getTaskDependencyFromProjectDependency(final boolean useDependedOn, final String taskName) {
         if (useDependedOn) {
-            return new TasksFromProjectDependencies(taskName, getAllDependencies(), projectAccessListener);
+            return new TasksFromProjectDependencies(taskName, getAllDependencies());
         } else {
             return new TasksFromDependentProjects(taskName, getName());
         }
@@ -1154,7 +1152,7 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
 
         Factory<ResolutionStrategyInternal> childResolutionStrategy = resolutionStrategy != null ? Factories.constant(resolutionStrategy.copy()) : resolutionStrategyFactory;
         DefaultConfiguration copiedConfiguration = instantiator.newInstance(DefaultConfiguration.class, domainObjectContext, newName, configurationsProvider, resolver, listenerManager,
-            metaDataProvider, childResolutionStrategy, projectAccessListener, fileCollectionFactory, buildOperationExecutor, instantiator, artifactNotationParser, capabilityNotationParser,
+            metaDataProvider, childResolutionStrategy, fileCollectionFactory, buildOperationExecutor, instantiator, artifactNotationParser, capabilityNotationParser,
             attributesFactory, rootComponentMetadataBuilder, documentationRegistry, userCodeApplicationContext, owner, projectStateRegistry, domainObjectCollectionFactory,
             calculatedValueContainerFactory);
         configurationsProvider.setTheOnlyConfiguration(copiedConfiguration);
@@ -1478,8 +1476,8 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
 
     @Nullable
     @Override
-    public List<String> getConsumptionAlternatives() {
-        return consumptionAlternatives;
+    public DeprecationMessageBuilder.WithDocumentation getConsumptionDeprecation() {
+        return consumptionDeprecation;
     }
 
     @Nullable
@@ -1491,7 +1489,7 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
     @Override
     public boolean isFullyDeprecated() {
         return declarationAlternatives != null &&
-            (!canBeConsumed || consumptionAlternatives != null) &&
+            (!canBeConsumed || consumptionDeprecation != null) &&
             (!canBeResolved || resolutionAlternatives != null);
     }
 
@@ -1502,8 +1500,8 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
     }
 
     @Override
-    public DeprecatableConfiguration deprecateForConsumption(String... alternativesForConsumption) {
-        this.consumptionAlternatives = ImmutableList.copyOf(alternativesForConsumption);
+    public DeprecatableConfiguration deprecateForConsumption(Function<DeprecationMessageBuilder.DeprecateConfiguration, DeprecationMessageBuilder.WithDocumentation> deprecation) {
+        this.consumptionDeprecation = deprecation.apply(DeprecationLogger.deprecateConfiguration(name).forConsumption());
         return this;
     }
 

@@ -63,7 +63,7 @@ public abstract class DefaultSettings extends AbstractPluginAware implements Set
 
     private DefaultProjectDescriptor rootProjectDescriptor;
 
-    private ProjectDescriptor defaultProjectDescriptor;
+    private DefaultProjectDescriptor defaultProjectDescriptor;
 
     private final GradleInternal gradle;
 
@@ -171,6 +171,7 @@ public abstract class DefaultSettings extends AbstractPluginAware implements Set
     }
 
     @Override
+    @Deprecated
     public void includeFlat(String... projectNames) {
         for (String projectName : projectNames) {
             createProjectDescriptor(rootProjectDescriptor, projectName,
@@ -195,12 +196,12 @@ public abstract class DefaultSettings extends AbstractPluginAware implements Set
     }
 
     @Override
-    public ProjectDescriptor getDefaultProject() {
+    public DefaultProjectDescriptor getDefaultProject() {
         return defaultProjectDescriptor;
     }
 
     @Override
-    public void setDefaultProject(ProjectDescriptor defaultProjectDescriptor) {
+    public void setDefaultProject(DefaultProjectDescriptor defaultProjectDescriptor) {
         this.defaultProjectDescriptor = defaultProjectDescriptor;
     }
 
@@ -284,7 +285,8 @@ public abstract class DefaultSettings extends AbstractPluginAware implements Set
         return new File(getSettingsDir(), BUILD_SRC);
     }
 
-    protected ServiceRegistry getServices() {
+    @Override
+    public ServiceRegistry getServices() {
         return services;
     }
 

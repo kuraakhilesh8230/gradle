@@ -3,9 +3,11 @@ package configurations
 import common.Os
 import common.applyDefaultSettings
 import common.buildToolGradleParameters
-import common.checkCleanM2
+import common.checkCleanM2AndAndroidUserHome
 import common.compileAllDependency
+import common.functionalTestParameters
 import common.gradleWrapper
+import common.killProcessStep
 import jetbrains.buildServer.configs.kotlin.v2019_2.BuildFeatures
 import jetbrains.buildServer.configs.kotlin.v2019_2.BuildStep
 import jetbrains.buildServer.configs.kotlin.v2019_2.BuildSteps
@@ -30,6 +32,7 @@ val m2CleanScriptUnixLike = """
     else
         echo "${'$'}REPO does not exist"
     fi
+
 """.trimIndent()
 
 val m2CleanScriptWindows = """
@@ -38,15 +41,26 @@ val m2CleanScriptWindows = """
         RMDIR /S /Q %teamcity.agent.jvm.user.home%\.m2\repository
         EXIT 1
     )
+
 """.trimIndent()
 
-val cleanAndroidUserHomeScriptUnixLike = """
-    rm -rf %teamcity.agent.jvm.user.home%/.android
+val checkCleanAndroidUserHomeScriptUnixLike = """
+    ANDROID_USER_HOME=%teamcity.agent.jvm.user.home%/.android
+    if [ -e ${'$'}ANDROID_USER_HOME ] ; then
+        tree ${'$'}ANDROID_USER_HOME
+        rm -rf ${'$'}ANDROID_USER_HOME
+        echo "${'$'}ANDROID_USER_HOME was polluted during the build"
+        # exit 1
+    else
+        echo "${'$'}ANDROID_USER_HOME does not exist"
+    fi
 """.trimIndent()
 
-val cleanAndroidUserHomeScriptWindows = """
+val checkCleanAndroidUserHomeScriptWindows = """
     IF exist %teamcity.agent.jvm.user.home%\.android (
+        TREE %teamcity.agent.jvm.user.home%\.android
         RMDIR /S /Q %teamcity.agent.jvm.user.home%\.android
+        REM EXIT 1
     )
 """.trimIndent()
 
@@ -64,7 +78,7 @@ fun BuildFeatures.triggeredOnPullRequests() {
                 token = "%github.bot-gradle.token%"
             }
             filterAuthorRole = PullRequests.GitHubRoleFilter.MEMBER
-            filterTargetBranch = allBranchesFilter
+            filterTargetBranch = branchesFilterExcluding()
         }
     }
 }
@@ -92,31 +106,18 @@ fun ProjectFeatures.buildReportTab(title: String, startPage: String) {
 
 fun BaseGradleBuildType.gradleRunnerStep(model: CIBuildModel, gradleTasks: String, os: Os = Os.LINUX, extraParameters: String = "", daemon: Boolean = true) {
     val buildScanTags = model.buildScanTags + listOfNotNull(stage?.id)
+    val parameters = (
+        buildToolGradleParameters(daemon) +
+            listOf(extraParameters) +
+            buildScanTags.map { buildScanTag(it) } +
+            functionalTestParameters(os)
+        ).joinToString(separator = " ")
 
     steps {
         gradleWrapper {
-            name = "SHOW_TOOLCHAINS"
-            tasks = "javaToolchains"
-            gradleParams = (
-                buildToolGradleParameters(daemon) +
-                    listOf(extraParameters) +
-                    "-PteamCityBuildId=%teamcity.build.id%" +
-                    buildScanTags.map { buildScanTag(it) } +
-                    os.javaInstallationLocations() +
-                    "-Porg.gradle.java.installations.auto-download=false"
-                ).joinToString(separator = " ")
-        }
-        gradleWrapper {
             name = "GRADLE_RUNNER"
             tasks = "clean $gradleTasks"
-            gradleParams = (
-                    buildToolGradleParameters(daemon) +
-                    listOf(extraParameters) +
-                    "-PteamCityBuildId=%teamcity.build.id%" +
-                    buildScanTags.map { buildScanTag(it) } +
-                    os.javaInstallationLocations() +
-                    "-Porg.gradle.java.installations.auto-download=false"
-                ).joinToString(separator = " ")
+            gradleParams = parameters
         }
     }
 }
@@ -155,30 +156,15 @@ fun BuildType.dumpOpenFiles() {
     }
 }
 
-private
-fun BaseGradleBuildType.killProcessStep(stepName: String, daemon: Boolean, os: Os) {
-    steps {
-        gradleWrapper {
-            name = stepName
-            executionMode = BuildStep.ExecutionMode.ALWAYS
-            tasks = "killExistingProcessesStartedByGradle"
-            gradleParams = (
-                buildToolGradleParameters(daemon) +
-                    "-DpublishStrategy=publishOnFailure" // https://github.com/gradle/gradle-enterprise-conventions-plugin/pull/8
-                ).joinToString(separator = " ")
-        }
-    }
-}
-
 fun applyDefaults(model: CIBuildModel, buildType: BaseGradleBuildType, gradleTasks: String, notQuick: Boolean = false, os: Os = Os.LINUX, extraParameters: String = "", timeout: Int = 90, extraSteps: BuildSteps.() -> Unit = {}, daemon: Boolean = true) {
-    buildType.applyDefaultSettings(os, timeout)
+    buildType.applyDefaultSettings(os, timeout = timeout)
 
-    buildType.killProcessStep("KILL_LEAKED_PROCESSES_FROM_PREVIOUS_BUILDS", daemon, os)
+    buildType.killProcessStep("KILL_LEAKED_PROCESSES_FROM_PREVIOUS_BUILDS", daemon)
     buildType.gradleRunnerStep(model, gradleTasks, os, extraParameters, daemon)
 
     buildType.steps {
         extraSteps()
-        checkCleanM2(os)
+        checkCleanM2AndAndroidUserHome(os)
     }
 
     applyDefaultDependencies(model, buildType, notQuick)
@@ -200,7 +186,7 @@ fun applyTestDefaults(
         buildType.params.param("env.REPO_MIRROR_URLS", "")
     }
 
-    buildType.applyDefaultSettings(os, timeout)
+    buildType.applyDefaultSettings(os, timeout = timeout)
 
     buildType.steps {
         preSteps()
@@ -210,18 +196,18 @@ fun applyTestDefaults(
         buildType.attachFileLeakDetector()
     }
 
-    buildType.killProcessStep("KILL_LEAKED_PROCESSES_FROM_PREVIOUS_BUILDS", daemon, os)
+    buildType.killProcessStep("KILL_LEAKED_PROCESSES_FROM_PREVIOUS_BUILDS", daemon)
 
     buildType.gradleRunnerStep(model, gradleTasks, os, extraParameters, daemon)
 
     if (os == Os.WINDOWS) {
         buildType.dumpOpenFiles()
     }
-    buildType.killProcessStep("KILL_PROCESSES_STARTED_BY_GRADLE", daemon, os)
+    buildType.killProcessStep("KILL_PROCESSES_STARTED_BY_GRADLE", daemon)
 
     buildType.steps {
         extraSteps()
-        checkCleanM2(os)
+        checkCleanM2AndAndroidUserHome(os)
     }
 
     applyDefaultDependencies(model, buildType, notQuick)

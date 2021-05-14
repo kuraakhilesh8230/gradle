@@ -32,8 +32,8 @@ import org.junit.Test
 
 import static org.gradle.api.tasks.TaskDependencyMatchers.dependsOn
 import static org.gradle.util.Matchers.isEmpty
-import static org.gradle.util.WrapUtil.toLinkedSet
-import static org.gradle.util.WrapUtil.toSet
+import static org.gradle.util.internal.WrapUtil.toLinkedSet
+import static org.gradle.util.internal.WrapUtil.toSet
 import static org.hamcrest.CoreMatchers.*
 import static org.junit.Assert.*
 
@@ -98,7 +98,7 @@ class ScalaBasePluginTest {
 
         assertThat(task.scalaCompileOptions.incrementalOptions.analysisFile.get().asFile, equalTo(new File("$project.buildDir/tmp/scala/compilerAnalysis/compileCustomScala.analysis")))
         assertThat(task.scalaCompileOptions.incrementalOptions.classfileBackupDir.get().asFile, equalTo(new File("$project.buildDir/tmp/scala/classfileBackup/compileCustomScala.bak")))
-        assertThat(task.scalaCompileOptions.incrementalOptions.publishedCode.get().asFile, equalTo(project.tasks['customJar'].archivePath))
+        assertThat(task.scalaCompileOptions.incrementalOptions.publishedCode.get().asFile, equalTo(project.tasks['customJar'].archiveFile.get().asFile))
         assertThat(task.analysisMappingFile.get().asFile, equalTo(new File("$project.buildDir/tmp/scala/compilerAnalysis/compileCustomScala.mapping")))
     }
 

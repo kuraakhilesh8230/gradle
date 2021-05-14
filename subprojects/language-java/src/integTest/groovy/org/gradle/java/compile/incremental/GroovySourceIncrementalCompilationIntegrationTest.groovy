@@ -33,7 +33,7 @@ class GroovySourceIncrementalCompilationIntegrationTest extends AbstractSourceIn
         outputs.recompiledClasses(recompiledClasses)
     }
 
-    def 'rebuild all after loading from cache'() {
+    def 'is incremental after loading from cache'() {
         given:
         def a = source "class A {}"
         source "class B {}"
@@ -44,7 +44,9 @@ class GroovySourceIncrementalCompilationIntegrationTest extends AbstractSourceIn
 
         when:
         withBuildCache()
-        run language.compileTaskName, '-i'
+        outputs.snapshot {
+            run language.compileTaskName, '-i'
+        }
 
         then:
         outputContains('FROM-CACHE')
@@ -54,7 +56,7 @@ class GroovySourceIncrementalCompilationIntegrationTest extends AbstractSourceIn
         run language.compileTaskName, '-i'
 
         then:
-        outputContains('unable to get source-classes mapping relationship')
+        outputs.recompiledClasses('A')
     }
 
     def 'only recompile affected classes when multiple class in one groovy file'() {
@@ -151,37 +153,27 @@ class A2{}
                 'Change the configuration of your sources or disable incremental Groovy compilation.')
     }
 
-    def 'clear class source mapping file on full recompilation'() {
-        given:
-        source('class A { }')
-        run 'compileGroovy'
-
-        when:
-        file('src/main/groovy/B.java') << 'class B {}'
-        // slightly modify the mapping file
-        file('build/tmp/compileGroovy/source-classes-mapping.txt') << '''org/gradle/MyClass.groovy
- org.gradle.MyClass'''
-        run 'compileGroovy', '--info'
-
-        then:
-        outputContains("Full recompilation is required because non-Groovy file 'B.java' has been added.")
-        !file('build/tmp/compileGroovy/source-classes-mapping.txt').text.contains('MyClass')
-    }
-
     def 'merge old class source mappings if no recompilation required'() {
         given:
-        File a =source('class A { }')
-        source('class B { }')
+        File a = source('class A { }')
+        File b = source('class B { } \n class C { }')
+        source('class Unrelated {}')
         run 'compileGroovy'
 
         when:
         a.delete()
-        run 'compileGroovy'
+        outputs.snapshot { run 'compileGroovy' }
 
         then:
         skipped(':compileGroovy')
-        !file('build/tmp/compileGroovy/source-classes-mapping.txt').text.contains('A.groovy')
-        file('build/tmp/compileGroovy/source-classes-mapping.txt').text.contains('B.groovy')
+
+        when:
+        b.text = 'class B { }'
+        run 'compileGroovy'
+
+        then:
+        outputs.recompiledClasses('B')
+        outputs.deletedClasses( "C")
     }
 
     def "does recompile when a resource changes"() {
